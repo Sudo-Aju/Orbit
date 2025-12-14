@@ -1,51 +1,63 @@
-# Welcome to your Expo app 👋
+# Orbit 🪐
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Orbit is a gamified task management application that visualizes your productivity as a dynamic solar system. Built with **React Native** and **Expo**, it turns your to-do list into an engaging space exploration experience where tasks are planets and subtasks are moons.
 
-## Get started
+## 🌟 Features
 
-1. Install dependencies
+### 🌌 Interactive Solar System 
+- **Tasks as Planets**: Every task you create becomes a planet orbiting the central sun.
+- **Dynamic Orbits**: The distance and speed of orbit depend on the task's deadline. Urgent tasks orbit closer!
+- **Visual Urgency**: Planets change size and position as deadlines approach, giving you an intuitive sense of time.
 
-   ```bash
-   npm install
-   ```
+### 🚀 Mission Control
+- **Create Missions**: distinct tasks with specific durations (1h, 6h, 1 day, 3 days, or Custom).
+- **Subtasks as Moons**: Break down large tasks into subtasks. These appear as moons orbiting their parent planet.
+- **Mass Absorption**: Completing subtasks causes your planet to grow in size as it "absorbs mass," visually rewarding your progress.
 
-2. Start the app
+### ⚡ Technical Highlights
+- **Persistant Storage**: Powered by **SQLite** (`expo-sqlite`) to ensure your missions are saved effectively.
+- **High-Performance Graphics**: Utilizes **react-native-svg** for rendering 60fps animations of the starfield, orbits, and planetary bodies.
+- **Smooth Animations**: Integrated `LayoutAnimation` and `requestAnimationFrame` for fluid UI transitions and game loops.
+- **Haptic Feedback & Gestures**: Tactile responses for a premium mobile feel.
 
-   ```bash
-   npx expo start
-   ```
+## 🛠 Tech Stack
 
-In the output, you'll find options to open the app in a
+- **Framework**: React Native (via Expo)
+- **Language**: TypeScript
+- **Database**: SQLite
+- **Graphics**: React Native SVG
+- **Navigation**: Expo Router (File-based routing)
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## 📱 Screens
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+1.  **Orbit Dashboard**: The main view featuring your personalized solar system. Watch your tasks orbit in real-time.
+2.  **Task Detail (Modal)**: Tap on any planet to open the detailed view. Here you can:
+    -   View time remaining.
+    -   Manage subtasks (Moons).
+    -   See "Mass Absorbed" progress.
+    -   Complete the mission (delete the task).
+3.  **Controls**: A collapsible bottom sheet to quickly add new missions (tasks) without losing sight of your galaxy.
 
-## Get a fresh project
+## 🏃‍♂️ Getting Started
 
-When you're ready, run:
+1.  **Install Dependencies**
+    ```bash
+    npm install
+    ```
 
-```bash
-npm run reset-project
-```
+2.  **Run the App**
+    ```bash
+    npx expo start
+    ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+3.  **Explore**
+    -   Open on **Android Emulator**, **iOS Simulator**, or your physical device using **Expo Go**.
 
-## Learn more
+## 🔮 Future Roadmap (Ideas)
+-   **Collision Events**: Tasks colliding if deadlines overlap?
+-   **Theme Unlockables**: Different solar systems for high productivity.
+-   **Long-term Stats**: a "Galaxy Map" of completed projects.
 
-To learn more about developing your project with Expo, look at the following resources:
+---
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
-# Orbit
+*Built with ❤️ using Expo.*

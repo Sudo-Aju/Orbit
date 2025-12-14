@@ -12,6 +12,19 @@ const CENTER_X = width / 2;
 const CENTER_Y = height / 2.2;
 const SUN_RADIUS = 35;
 
+// --- UTILS ---
+// Consistent color logic for both Main View and Modal
+const getPlanetPalette = (deadline: number, now: number) => {
+  const hoursRemaining = (deadline - now) / (1000 * 60 * 60);
+
+  // Returns [MainColor, DarkerShadowColor]
+  if (hoursRemaining < 1) return ["#ff4757", "#c0392b"]; // Red (Critical)
+  if (hoursRemaining < 6) return ["#ffa502", "#e67e22"]; // Orange
+  if (hoursRemaining < 24) return ["#f1c40f", "#f39c12"]; // Yellow
+  if (hoursRemaining < 48) return ["#2ecc71", "#27ae60"]; // Green
+  return ["#3742fa", "#0984e3"]; // Blue (Safe)
+};
+
 const StarField = React.memo(() => {
   const stars = useMemo(() => {
     return Array.from({ length: 80 }).map((_, i) => ({
@@ -26,14 +39,7 @@ const StarField = React.memo(() => {
   return (
     <>
       {stars.map((star) => (
-        <Circle
-          key={star.key}
-          cx={star.x}
-          cy={star.y}
-          r={star.r}
-          fill="white"
-          opacity={star.opacity}
-        />
+        <Circle key={star.key} cx={star.x} cy={star.y} r={star.r} fill="white" opacity={star.opacity} />
       ))}
     </>
   );
@@ -54,19 +60,22 @@ export default function OrbitScreen() {
   const [newSubTaskText, setNewSubTaskText] = useState("");
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
 
-  const [animatingIds, setAnimatingIds] = useState<number[]>([]);
+  // Animation States
+  const [spawnTimes, setSpawnTimes] = useState<{ [key: number]: number }>({}); // To track warp-in start time
+  const [impactState, setImpactState] = useState<{ id: number, time: number } | null>(null);
 
   useEffect(() => {
     async function setup() {
       try {
-        const database = await SQLite.openDatabaseAsync('orbit_v9_collision.db');
+        const database = await SQLite.openDatabaseAsync('orbit_v11_smooth.db');
         setDb(database);
 
         await database.execAsync(`
           CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
-            deadline INTEGER
+            deadline INTEGER,
+            created_at INTEGER
           );
         `);
 
@@ -102,6 +111,7 @@ export default function OrbitScreen() {
     if (tasks.length > 0 && db) {
       const now = Date.now();
       tasks.forEach(task => {
+        // Sun Eating Logic: 2000ms animation
         if (task.deadline <= now - 2000) {
           deleteTaskCascade(task.id);
         }
@@ -128,14 +138,13 @@ export default function OrbitScreen() {
       duration = hours * 3600000;
     }
 
-    const deadline = Date.now() + duration;
-    const result = await db.runAsync('INSERT INTO tasks (title, deadline) VALUES (?, ?)', [newTaskText, deadline]);
+    const now = Date.now();
+    const deadline = now + duration;
+    const result = await db.runAsync('INSERT INTO tasks (title, deadline, created_at) VALUES (?, ?, ?)', [newTaskText, deadline, now]);
 
+    // Record spawn time for animation
     if (result.lastInsertRowId) {
-      setAnimatingIds(prev => [...prev, result.lastInsertRowId]);
-      setTimeout(() => {
-        setAnimatingIds(prev => prev.filter(id => id !== result.lastInsertRowId));
-      }, 1000);
+      setSpawnTimes(prev => ({ ...prev, [result.lastInsertRowId]: now }));
     }
 
     setNewTaskText("");
@@ -153,10 +162,14 @@ export default function OrbitScreen() {
 
   const toggleSubTask = async (subId: number, currentStatus: number) => {
     if (!db) return;
-    // Animate the size change
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
+
     const newStatus = currentStatus === 1 ? 0 : 1;
     await db.runAsync('UPDATE subtasks SET is_completed = ? WHERE id = ?', [newStatus, subId]);
+
+    if (newStatus === 1 && selectedTask) {
+      setImpactState({ id: selectedTask.id, time: Date.now() });
+      setTimeout(() => setImpactState(null), 300);
+    }
     refreshData();
   }
 
@@ -177,59 +190,80 @@ export default function OrbitScreen() {
 
   // --- RENDERERS ---
 
-  const renderCollisionProgress = (taskId: number) => {
+  const renderCollisionProgress = (taskId: number, deadline: number) => {
     const mySubTasks = subTasks.filter(s => s.parent_id === taskId);
     const total = mySubTasks.length;
     if (total === 0) return null;
 
     const completed = mySubTasks.filter(s => s.is_completed).length;
 
-    // PHYSICS: Planet grows as it eats moons
-    const baseSize = 30;
-    const growthPerMoon = 8;
-    const currentRadius = baseSize + (completed * growthPerMoon);
+    // Get Planet Color matching the main view
+    const [mainColor, shadowColor] = getPlanetPalette(deadline, globalTime);
 
-    // Render remaining moons orbiting
+    // Base Size
+    let currentRadius = 30 + (completed * 8);
+
+    // CHAOS: Impact Shake
+    let offsetX = 0;
+    let offsetY = 0;
+    let flashFill = `url(#grad_${taskId}_modal)`; // Use gradient by default
+
+    if (impactState && impactState.id === taskId) {
+      offsetX = (Math.random() - 0.5) * 10;
+      offsetY = (Math.random() - 0.5) * 10;
+      currentRadius += 5;
+    }
+
     const incompleteMoons = mySubTasks.filter(s => !s.is_completed);
 
     return (
       <View style={{ alignItems: 'center', marginBottom: 20 }}>
         <Svg height={140} width={width * 0.8}>
           <Defs>
-            <RadialGradient id="modalPlanetGrad" cx="30%" cy="30%" rx="50%" ry="50%">
-              <Stop offset="0%" stopColor="#3742fa" stopOpacity="1" />
-              <Stop offset="100%" stopColor="#0984e3" stopOpacity="1" />
+            {/* Dynamic Gradient for Modal Planet */}
+            <RadialGradient id={`grad_${taskId}_modal`} cx="30%" cy="30%" rx="50%" ry="50%">
+              <Stop offset="0%" stopColor={mainColor} stopOpacity="1" />
+              <Stop offset="100%" stopColor={shadowColor} stopOpacity="1" />
             </RadialGradient>
           </Defs>
 
-          {/* The Growing Planet */}
+          {/* Planet */}
           <Circle
-            cx={width * 0.4}
-            cy={70}
+            cx={(width * 0.4) + offsetX}
+            cy={70 + offsetY}
             r={currentRadius}
-            fill="url(#modalPlanetGrad)"
+            fill={flashFill}
           />
+          {/* Inner Shadow/Glow */}
           <Circle
-            cx={width * 0.4}
-            cy={70}
+            cx={(width * 0.4) + offsetX}
+            cy={70 + offsetY}
             r={currentRadius}
             stroke="white"
             strokeWidth={2}
             opacity={0.3}
           />
 
-          {/* Orbiting Incomplete Moons */}
+          {/* Shockwave */}
+          {impactState && impactState.id === taskId && (
+            <Circle
+              cx={(width * 0.4)}
+              cy={70}
+              r={currentRadius + 15}
+              stroke="white"
+              strokeWidth={2}
+              opacity={0.5}
+            />
+          )}
+
           {incompleteMoons.map((moon, i) => {
-            const orbitR = currentRadius + 15;
+            const orbitR = currentRadius + 20;
             const angle = (i * (Math.PI * 2 / Math.max(1, incompleteMoons.length))) + (globalTime * 0.001);
             const mx = (width * 0.4) + orbitR * Math.cos(angle);
             const my = 70 + orbitR * Math.sin(angle);
 
             return (
-              <Circle
-                key={`preview_moon_${moon.id}`}
-                cx={mx} cy={my} r={4} fill="#bdc3c7"
-              />
+              <Circle key={`preview_moon_${moon.id}`} cx={mx} cy={my} r={4} fill="#bdc3c7" />
             )
           })}
         </Svg>
@@ -243,65 +277,103 @@ export default function OrbitScreen() {
       const timeRemaining = task.deadline - globalTime;
       const hoursRemaining = Math.max(0, timeRemaining / (1000 * 60 * 60));
 
+      // 1. Calculate Radius
       let orbitRadius = SUN_RADIUS + 25 + (hoursRemaining * 6);
       if (orbitRadius > width / 2 - 20) orbitRadius = width / 2 - 20;
 
-      if (timeRemaining < 0) {
-        orbitRadius = Math.max(0, SUN_RADIUS * (1 - Math.abs(timeRemaining) / 2000));
+      // 2. Animation Factors
+      let isDying = false;
+      let scale = 1;
+      let opacity = 1;
+      let chaosX = 0;
+      let chaosY = 0;
+
+      // -- SPAWN ANIMATION (Warp In) --
+      const spawnTime = spawnTimes[task.id] || task.created_at || 0;
+      const age = globalTime - spawnTime;
+      if (age < 800) {
+        // Smooth Ease-Out Back effect
+        const t = age / 800;
+        const easeOutBack = 1 + 2.70158 * Math.pow(t - 1, 3) + 1.70158 * Math.pow(t - 1, 2);
+        scale = Math.max(0, easeOutBack);
       }
 
-      const planetAngle = (index * 2) + (globalTime * 0.0002);
-      const planetX = CENTER_X + orbitRadius * Math.cos(planetAngle);
-      const planetY = CENTER_Y + orbitRadius * Math.sin(planetAngle);
+      // -- DEATH ANIMATION (Black Hole Suction) --
+      if (timeRemaining < 0) {
+        isDying = true;
+        const deathProgress = Math.min(1, Math.abs(timeRemaining) / 2000); // 0 to 1 over 2s
 
-      const isWarpingIn = animatingIds.includes(task.id);
-      let planetSize = 8 + (hoursRemaining < 1 ? (Math.sin(globalTime / 200) * 2 + 2) : 0);
-      if (isWarpingIn) planetSize = 0;
-      if (timeRemaining < 0) planetSize = Math.max(0, 8 * (1 - Math.abs(timeRemaining) / 2000));
+        // Spiral into center
+        orbitRadius = orbitRadius * (1 - deathProgress);
+        scale = 1 - deathProgress; // Shrink
+        opacity = 1 - deathProgress;
+
+        // Shake
+        const shake = 5 * deathProgress;
+        chaosX = (Math.random() - 0.5) * shake;
+        chaosY = (Math.random() - 0.5) * shake;
+      }
+
+      // 3. Orbit Mechanics
+      const planetAngle = (index * 2) + (globalTime * 0.0002);
+      const planetX = CENTER_X + orbitRadius * Math.cos(planetAngle) + chaosX;
+      const planetY = CENTER_Y + orbitRadius * Math.sin(planetAngle) + chaosY;
+
+      // 4. Planet Colors (Synced)
+      const [mainColor, shadowColor] = getPlanetPalette(task.deadline, globalTime);
+
+      // 5. Pulse Critical
+      if (hoursRemaining < 1 && !isDying) {
+        const pulse = Math.sin(globalTime / 150) * 0.1;
+        scale += pulse;
+      }
+
+      const planetSize = 8; // Base size
 
       const myMoons = subTasks.filter(st => st.parent_id === task.id && st.is_completed === 0);
 
-      const renderMoons = () => {
-        return myMoons.map((moon, mIndex) => {
-          const moonOrbitRadius = 15;
-          const moonSpeed = 0.002;
-          const moonAngle = (mIndex * (Math.PI * 2 / myMoons.length)) + (globalTime * moonSpeed);
-
-          const moonX = planetX + moonOrbitRadius * Math.cos(moonAngle);
-          const moonY = planetY + moonOrbitRadius * Math.sin(moonAngle);
-
-          return (
-            <Circle
-              key={`moon_${moon.id}`}
-              cx={moonX}
-              cy={moonY}
-              r={2}
-              fill="#bdc3c7"
-              opacity={timeRemaining > 0 ? 0.8 : 0}
-            />
-          );
-        });
-      };
-
       return (
         <G key={task.id} onPress={() => setSelectedTask(task)}>
-          {timeRemaining > 0 && (
+          {/* GRADIENT DEF (Unique per task to allow color switching) */}
+          <Defs>
+            <RadialGradient id={`grad_${task.id}`} cx="30%" cy="30%" rx="50%" ry="50%">
+              <Stop offset="0%" stopColor={mainColor} stopOpacity="1" />
+              <Stop offset="100%" stopColor={shadowColor} stopOpacity="1" />
+            </RadialGradient>
+          </Defs>
+
+          {/* Orbit Track */}
+          {!isDying && (
             <Circle
               cx={CENTER_X} cy={CENTER_Y} r={orbitRadius}
               stroke="rgba(255,255,255,0.03)" strokeWidth="1" fill="none"
             />
           )}
 
-          {timeRemaining > 0 && renderMoons()}
+          {/* Moons */}
+          {!isDying && myMoons.map((moon, mIndex) => {
+            const moonOrbitRadius = 15 * scale;
+            const moonAngle = (mIndex * (Math.PI * 2 / myMoons.length)) + (globalTime * 0.002);
+            const mx = planetX + moonOrbitRadius * Math.cos(moonAngle);
+            const my = planetY + moonOrbitRadius * Math.sin(moonAngle);
+            return (
+              <Circle key={`moon_${moon.id}`} cx={mx} cy={my} r={2 * scale} fill="#bdc3c7" opacity={0.8} />
+            );
+          })}
 
-          <G transform={`translate(${planetX}, ${planetY})`}>
-            <Circle r={planetSize} fill={`url(#grad_${task.id % 5})`} />
-            <Circle r={planetSize} stroke="rgba(255,255,255,0.4)" strokeWidth={1} opacity={0.5} />
+          {/* The Planet Group (Scaled for animation) */}
+          <G transform={`translate(${planetX}, ${planetY}) scale(${scale})`}>
+            {/* Planet Body */}
+            <Circle r={planetSize} fill={`url(#grad_${task.id})`} opacity={opacity} />
+
+            {/* 3D Rim Light */}
+            <Circle r={planetSize} stroke="rgba(255,255,255,0.4)" strokeWidth={1} opacity={0.5 * opacity} />
           </G>
 
-          {timeRemaining > 0 && (
+          {/* Label */}
+          {!isDying && (
             <SvgText
-              x={planetX + 12} y={planetY + 4} fill="#aaa" fontSize="10" fontWeight="bold" opacity={0.8}
+              x={planetX + 12} y={planetY + 4} fill="#aaa" fontSize="10" fontWeight="bold" opacity={0.8 * opacity}
             >
               {task.title.length > 8 ? task.title.substring(0, 8) + ".." : task.title}
             </SvgText>
@@ -337,7 +409,9 @@ export default function OrbitScreen() {
     return mins + " Mins left";
   }
 
-  const sunPulse = 1 + Math.sin(globalTime / 800) * 0.05;
+  const dyingCount = tasks.filter(t => t.deadline - globalTime < 0).length;
+  const sunPulse = 1 + Math.sin(globalTime / (dyingCount > 0 ? 100 : 800)) * (dyingCount > 0 ? 0.2 : 0.05);
+  const sunColor = dyingCount > 0 ? "#ff4757" : "#ffdd59";
 
   return (
     <View style={styles.container}>
@@ -352,30 +426,9 @@ export default function OrbitScreen() {
         <Svg height={height * 0.75} width={width}>
           <Defs>
             <RadialGradient id="sunGrad" cx="50%" cy="50%" rx="50%" ry="50%">
-              <Stop offset="0%" stopColor="#ffdd59" stopOpacity="1" />
+              <Stop offset="0%" stopColor={sunColor} stopOpacity="1" />
               <Stop offset="70%" stopColor="#ffa502" stopOpacity="0.8" />
               <Stop offset="100%" stopColor="#ff4757" stopOpacity="0" />
-            </RadialGradient>
-
-            <RadialGradient id="grad_0" cx="30%" cy="30%" rx="50%" ry="50%">
-              <Stop offset="0%" stopColor="#ff6b81" stopOpacity="1" />
-              <Stop offset="100%" stopColor="#c0392b" stopOpacity="1" />
-            </RadialGradient>
-            <RadialGradient id="grad_1" cx="30%" cy="30%" rx="50%" ry="50%">
-              <Stop offset="0%" stopColor="#f1c40f" stopOpacity="1" />
-              <Stop offset="100%" stopColor="#e67e22" stopOpacity="1" />
-            </RadialGradient>
-            <RadialGradient id="grad_2" cx="30%" cy="30%" rx="50%" ry="50%">
-              <Stop offset="0%" stopColor="#f1c40f" stopOpacity="1" />
-              <Stop offset="100%" stopColor="#f39c12" stopOpacity="1" />
-            </RadialGradient>
-            <RadialGradient id="grad_3" cx="30%" cy="30%" rx="50%" ry="50%">
-              <Stop offset="0%" stopColor="#2ecc71" stopOpacity="1" />
-              <Stop offset="100%" stopColor="#27ae60" stopOpacity="1" />
-            </RadialGradient>
-            <RadialGradient id="grad_4" cx="30%" cy="30%" rx="50%" ry="50%">
-              <Stop offset="0%" stopColor="#3742fa" stopOpacity="1" />
-              <Stop offset="100%" stopColor="#0984e3" stopOpacity="1" />
             </RadialGradient>
           </Defs>
 
@@ -473,8 +526,7 @@ export default function OrbitScreen() {
                   </Text>
                 </View>
 
-                {/* VISUAL PROGRESS BAR (PLANET GROWTH) */}
-                {renderCollisionProgress(selectedTask.id)}
+                {renderCollisionProgress(selectedTask.id, selectedTask.deadline)}
 
                 <View style={styles.subtaskList}>
                   <Text style={styles.subtaskHeader}>MOONS</Text>
