@@ -41,7 +41,7 @@ const StarField = React.memo(() => {
 
 export default function OrbitScreen() {
   const [tasks, setTasks] = useState<any[]>([]);
-  const [subTasks, setSubTasks] = useState<any[]>([]); // New state for moons
+  const [subTasks, setSubTasks] = useState<any[]>([]);
   const [globalTime, setGlobalTime] = useState(0);
   const [newTaskText, setNewTaskText] = useState("");
 
@@ -51,7 +51,7 @@ export default function OrbitScreen() {
   const [isControlsMinimized, setIsControlsMinimized] = useState(false);
 
   const [selectedTask, setSelectedTask] = useState<any>(null);
-  const [newSubTaskText, setNewSubTaskText] = useState(""); // Input for subtask modal
+  const [newSubTaskText, setNewSubTaskText] = useState("");
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
 
   const [animatingIds, setAnimatingIds] = useState<number[]>([]);
@@ -59,10 +59,9 @@ export default function OrbitScreen() {
   useEffect(() => {
     async function setup() {
       try {
-        const database = await SQLite.openDatabaseAsync('orbit_v8_moons.db');
+        const database = await SQLite.openDatabaseAsync('orbit_v9_collision.db');
         setDb(database);
 
-        // Create Main Table
         await database.execAsync(`
           CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,7 +70,6 @@ export default function OrbitScreen() {
           );
         `);
 
-        // Create Subtasks Table
         await database.execAsync(`
           CREATE TABLE IF NOT EXISTS subtasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -147,6 +145,7 @@ export default function OrbitScreen() {
 
   const addSubTask = async () => {
     if (!newSubTaskText || !selectedTask || !db) return;
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     await db.runAsync('INSERT INTO subtasks (parent_id, title) VALUES (?, ?)', [selectedTask.id, newSubTaskText]);
     setNewSubTaskText("");
     refreshData();
@@ -154,6 +153,8 @@ export default function OrbitScreen() {
 
   const toggleSubTask = async (subId: number, currentStatus: number) => {
     if (!db) return;
+    // Animate the size change
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
     const newStatus = currentStatus === 1 ? 0 : 1;
     await db.runAsync('UPDATE subtasks SET is_completed = ? WHERE id = ?', [newStatus, subId]);
     refreshData();
@@ -162,9 +163,7 @@ export default function OrbitScreen() {
   const deleteTaskCascade = async (id: number) => {
     if (!db) return;
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    // Delete subtasks first
     await db.runAsync('DELETE FROM subtasks WHERE parent_id = ?', [id]);
-    // Delete parent
     await db.runAsync('DELETE FROM tasks WHERE id = ?', [id]);
 
     if (selectedTask?.id === id) setSelectedTask(null);
@@ -176,9 +175,71 @@ export default function OrbitScreen() {
     setIsControlsMinimized(!isControlsMinimized);
   }
 
+  // --- RENDERERS ---
+
+  const renderCollisionProgress = (taskId: number) => {
+    const mySubTasks = subTasks.filter(s => s.parent_id === taskId);
+    const total = mySubTasks.length;
+    if (total === 0) return null;
+
+    const completed = mySubTasks.filter(s => s.is_completed).length;
+
+    // PHYSICS: Planet grows as it eats moons
+    const baseSize = 30;
+    const growthPerMoon = 8;
+    const currentRadius = baseSize + (completed * growthPerMoon);
+
+    // Render remaining moons orbiting
+    const incompleteMoons = mySubTasks.filter(s => !s.is_completed);
+
+    return (
+      <View style={{ alignItems: 'center', marginBottom: 20 }}>
+        <Svg height={140} width={width * 0.8}>
+          <Defs>
+            <RadialGradient id="modalPlanetGrad" cx="30%" cy="30%" rx="50%" ry="50%">
+              <Stop offset="0%" stopColor="#3742fa" stopOpacity="1" />
+              <Stop offset="100%" stopColor="#0984e3" stopOpacity="1" />
+            </RadialGradient>
+          </Defs>
+
+          {/* The Growing Planet */}
+          <Circle
+            cx={width * 0.4}
+            cy={70}
+            r={currentRadius}
+            fill="url(#modalPlanetGrad)"
+          />
+          <Circle
+            cx={width * 0.4}
+            cy={70}
+            r={currentRadius}
+            stroke="white"
+            strokeWidth={2}
+            opacity={0.3}
+          />
+
+          {/* Orbiting Incomplete Moons */}
+          {incompleteMoons.map((moon, i) => {
+            const orbitR = currentRadius + 15;
+            const angle = (i * (Math.PI * 2 / Math.max(1, incompleteMoons.length))) + (globalTime * 0.001);
+            const mx = (width * 0.4) + orbitR * Math.cos(angle);
+            const my = 70 + orbitR * Math.sin(angle);
+
+            return (
+              <Circle
+                key={`preview_moon_${moon.id}`}
+                cx={mx} cy={my} r={4} fill="#bdc3c7"
+              />
+            )
+          })}
+        </Svg>
+        <Text style={styles.progressText}>{completed}/{total} Mass Absorbed</Text>
+      </View>
+    )
+  }
+
   const renderSolarSystem = () => {
     return tasks.map((task, index) => {
-      // 1. Planet Physics
       const timeRemaining = task.deadline - globalTime;
       const hoursRemaining = Math.max(0, timeRemaining / (1000 * 60 * 60));
 
@@ -193,19 +254,17 @@ export default function OrbitScreen() {
       const planetX = CENTER_X + orbitRadius * Math.cos(planetAngle);
       const planetY = CENTER_Y + orbitRadius * Math.sin(planetAngle);
 
-      // 2. Planet Visuals
       const isWarpingIn = animatingIds.includes(task.id);
       let planetSize = 8 + (hoursRemaining < 1 ? (Math.sin(globalTime / 200) * 2 + 2) : 0);
       if (isWarpingIn) planetSize = 0;
       if (timeRemaining < 0) planetSize = Math.max(0, 8 * (1 - Math.abs(timeRemaining) / 2000));
 
-      // 3. Render Moons (Subtasks)
       const myMoons = subTasks.filter(st => st.parent_id === task.id && st.is_completed === 0);
 
       const renderMoons = () => {
         return myMoons.map((moon, mIndex) => {
-          const moonOrbitRadius = 15; // Distance from planet
-          const moonSpeed = 0.002; // Faster than planet
+          const moonOrbitRadius = 15;
+          const moonSpeed = 0.002;
           const moonAngle = (mIndex * (Math.PI * 2 / myMoons.length)) + (globalTime * moonSpeed);
 
           const moonX = planetX + moonOrbitRadius * Math.cos(moonAngle);
@@ -233,7 +292,6 @@ export default function OrbitScreen() {
             />
           )}
 
-          {/* Draw Moons first so they go behind planet sometimes (simple z-index via order) */}
           {timeRemaining > 0 && renderMoons()}
 
           <G transform={`translate(${planetX}, ${planetY})`}>
@@ -415,9 +473,11 @@ export default function OrbitScreen() {
                   </Text>
                 </View>
 
-                {/* SUBTASKS SECTION */}
+                {/* VISUAL PROGRESS BAR (PLANET GROWTH) */}
+                {renderCollisionProgress(selectedTask.id)}
+
                 <View style={styles.subtaskList}>
-                  <Text style={styles.subtaskHeader}>MOONS (Sub-tasks)</Text>
+                  <Text style={styles.subtaskHeader}>MOONS</Text>
 
                   <FlatList
                     data={subTasks.filter(s => s.parent_id === selectedTask.id)}
@@ -433,11 +493,10 @@ export default function OrbitScreen() {
                         </Text>
                       </TouchableOpacity>
                     )}
-                    ListEmptyComponent={<Text style={styles.emptySub}>No moons yet.</Text>}
+                    ListEmptyComponent={<Text style={styles.emptySub}>Add subtasks to spawn moons.</Text>}
                     style={{ maxHeight: 150 }}
                   />
 
-                  {/* Add Subtask Input */}
                   <View style={styles.subtaskInputRow}>
                     <TextInput
                       style={styles.subtaskInput}
@@ -500,8 +559,9 @@ const styles = StyleSheet.create({
   modalTitle: { color: 'white', fontSize: 24, fontWeight: 'bold', flex: 1 },
   closeText: { color: '#808e9b', fontSize: 24, fontWeight: 'bold', padding: 5 },
 
-  modalBadge: { alignSelf: 'flex-start', backgroundColor: '#2a2d3a', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginTop: 5, marginBottom: 20 },
+  modalBadge: { alignSelf: 'flex-start', backgroundColor: '#2a2d3a', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginTop: 5, marginBottom: 10 },
   modalBadgeText: { color: '#d2dae2', fontSize: 12, fontWeight: 'bold' },
+  progressText: { color: '#0984e3', fontSize: 12, fontWeight: 'bold', marginTop: 5 },
 
   subtaskList: { marginBottom: 20, backgroundColor: '#15171e', padding: 15, borderRadius: 15 },
   subtaskHeader: { color: '#808e9b', fontSize: 10, fontWeight: 'bold', marginBottom: 10, letterSpacing: 1 },
