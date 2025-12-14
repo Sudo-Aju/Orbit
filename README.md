@@ -1,63 +1,41 @@
-# Orbit
 
-Orbit is a gamified task management application that visualizes your productivity as a dynamic solar system. Built with **React Native** and **Expo**, it turns your to-do list into an engaging space exploration experience where tasks are planets and subtasks are moons.
+# Orbit - Task Management & Productivity
 
-## Features
+Orbit is a gamified task management application designed to make productivity engaging and visually immersive. By abstracting tasks into celestial bodies, Orbit transforms your daily to-do list into a thriving solar system, where completing tasks contributes to the growth and harmony of your personal universe.
 
-### Interactive Solar System 
-- **Tasks as Planets**: Every task you create becomes a planet orbiting the central sun.
-- **Dynamic Orbits**: The distance and speed of orbit depend on the task's deadline. Urgent tasks orbit closer!
-- **Visual Urgency**: Planets change size and position as deadlines approach, giving you an intuitive sense of time.
+## Core Features
 
-### Mission Control
-- **Create Missions**: distinct tasks with specific durations (1h, 6h, 1 day, 3 days, or Custom).
-- **Subtasks as Moons**: Break down large tasks into subtasks. These appear as moons orbiting their parent planet.
-- **Mass Absorption**: Completing subtasks causes your planet to grow in size as it "absorbs mass," visually rewarding your progress.
+### 1. Gamified Task Visualization
+Tasks are represented as planets, comets, or satellites within a dynamic solar system.
+*   **Planets**: Standard tasks that orbit a central sun.
+*   **Satellites**: specialized tasks with distinct visual cues.
+*   **Comets**: Tasks with unique trajectories and visual flair.
+*   **Moons**: Subtasks orbit their parent tasks (planets), creating a nested hierarchy of goals.
 
-### Technical Highlights
-- **Persistant Storage**: Powered by **SQLite** (`expo-sqlite`) to ensure your missions are saved effectively.
-- **High-Performance Graphics**: Utilizes **react-native-svg** for rendering 60fps animations of the starfield, orbits, and planetary bodies.
-- **Smooth Animations**: Integrated `LayoutAnimation` and `requestAnimationFrame` for fluid UI transitions and game loops.
-- **Haptic Feedback & Gestures**: Tactile responses for a premium mobile feel.
+### 2. Immersive Universe View
+Expanding beyond a single list, the "Known Universe" view allows you to manage multiple categories of tasks as distinct solar systems. The universe orbits a central void, providing a macro-level perspective of your productivity across different life domains (e.g., Work, Personal, Health).
 
-## 🛠 Tech Stack
+### 3. Interactive System Management
+*   **System Inspector**: Tap on any solar system in the universe view to inspect its contents.
+*   **Renaming**: Directly rename task categories (solar systems) from within the inspector interface.
+*   **Destruction**: Destroying a system plays a dramatic animation where the system is sucked into the central void, symbolizing the clearing or abandonment of an accumulated project.
+*   **Rearrangement**: Solar systems dynamically reorder themselves in orbit when one is removed.
+*   **Creation**: Easily establish new solar systems to categorize fresh sets of tasks.
 
-- **Framework**: React Native (via Expo)
-- **Language**: TypeScript
-- **Database**: SQLite
-- **Graphics**: React Native SVG
-- **Navigation**: Expo Router (File-based routing)
+### 4. Dynamic Animations & Visuals
+*   **Living Environment**: The application features a constantly animating environment with orbiting bodies, agitating suns based on deadlines, and background star fields.
+*   **Cutscenes**: High-quality visual sequences reward user actions:
+    *   **Launch**: initiating a new task triggers a rocket launch or planet formation sequence.
+    *   **Completion**: Finishing a task triggers a satisfying mission complete animation.
+    *   **Destruction**: Deleting tasks or systems initiates explosive or implosive visual effects.
+*   **Haptic Feedback**: Meaningful haptic vibrations accompany interactions, adding tactile weight to your productivity actions.
 
-## Screens
+### 5. Detailed Task Management
+*   **Deadlines & Agitation**: As deadlines approach, the visual environment reacts (e.g., the sun becomes more agitated), providing intuitive urgency cues.
+*   **Subtasks**: Break down larger missions into smaller, manageable subtasks (moons).
+*   **Collision Progress**: Visualize progress through "collision" mechanics where completing subtasks contributes to the main task's mass or status.
+*   **Recurring Tasks**: Support for monthly and yearly recurring missions.
+*   **Scheduling**: Integrated custom calendar and time picker for precise deadline setting.
 
-1.  **Orbit Dashboard**: The main view featuring your personalized solar system. Watch your tasks orbit in real-time.
-2.  **Task Detail (Modal)**: Tap on any planet to open the detailed view. Here you can:
-    -   View time remaining.
-    -   Manage subtasks (Moons).
-    -   See "Mass Absorbed" progress.
-    -   Complete the mission (delete the task).
-3.  **Controls**: A collapsible bottom sheet to quickly add new missions (tasks) without losing sight of your galaxy.
-
-## Getting Started
-
-1.  **Install Dependencies**
-    ```bash
-    npm install
-    ```
-
-2.  **Run the App**
-    ```bash
-    npx expo start
-    ```
-
-3.  **Explore**
-    -   Open on **Android Emulator**, **iOS Simulator**, or your physical device using **Expo Go**.
-
-## Future Roadmap (Ideas)
--   **Collision Events**: Tasks colliding if deadlines overlap?
--   **Theme Unlockables**: Different solar systems for high productivity.
--   **Long-term Stats**: a "Galaxy Map" of completed projects.
-
----
-
-*Built using Expo.*
+### 6. Minimalist & Sci-Fi Aesthetic
+The interface uses a dark, high-contrast palette with sleek typography and neon accents, drawing inspiration from sci-fi interfaces to keep the user focused and immersed. The controls can be minimized to enjoy the view of your productive output.
