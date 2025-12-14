@@ -1,9 +1,8 @@
 import * as SQLite from 'expo-sqlite';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Dimensions, LayoutAnimation, Modal, Platform, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View } from 'react-native';
+import { Dimensions, FlatList, LayoutAnimation, Modal, Platform, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View } from 'react-native';
 import Svg, { Circle, Defs, G, RadialGradient, Stop, Text as SvgText } from 'react-native-svg';
 
-// Enable LayoutAnimation for Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
@@ -13,13 +12,12 @@ const CENTER_X = width / 2;
 const CENTER_Y = height / 2.2;
 const SUN_RADIUS = 35;
 
-// --- STARFIELD COMPONENT (Memoized for performance) ---
 const StarField = React.memo(() => {
   const stars = useMemo(() => {
     return Array.from({ length: 80 }).map((_, i) => ({
       key: i,
       x: Math.random() * width,
-      y: Math.random() * height * 0.8, // Keep stars mostly in the upper view
+      y: Math.random() * height * 0.8,
       r: Math.random() * 1.5 + 0.5,
       opacity: Math.random() * 0.8 + 0.2
     }));
@@ -43,27 +41,28 @@ const StarField = React.memo(() => {
 
 export default function OrbitScreen() {
   const [tasks, setTasks] = useState<any[]>([]);
+  const [subTasks, setSubTasks] = useState<any[]>([]); // New state for moons
   const [globalTime, setGlobalTime] = useState(0);
   const [newTaskText, setNewTaskText] = useState("");
 
-  // Custom Time State
   const [selectedDuration, setSelectedDuration] = useState(3600000);
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [customHours, setCustomHours] = useState("");
   const [isControlsMinimized, setIsControlsMinimized] = useState(false);
 
   const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [newSubTaskText, setNewSubTaskText] = useState(""); // Input for subtask modal
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
 
-  // Animation State for "Warp In" effect
   const [animatingIds, setAnimatingIds] = useState<number[]>([]);
 
   useEffect(() => {
     async function setup() {
       try {
-        const database = await SQLite.openDatabaseAsync('orbit_v7_visuals.db');
+        const database = await SQLite.openDatabaseAsync('orbit_v8_moons.db');
         setDb(database);
 
+        // Create Main Table
         await database.execAsync(`
           CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,8 +71,17 @@ export default function OrbitScreen() {
           );
         `);
 
-        const result = await database.getAllAsync('SELECT * FROM tasks');
-        setTasks(result);
+        // Create Subtasks Table
+        await database.execAsync(`
+          CREATE TABLE IF NOT EXISTS subtasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            parent_id INTEGER,
+            title TEXT,
+            is_completed INTEGER DEFAULT 0
+          );
+        `);
+
+        refreshData(database);
       } catch (e) {
         console.log(e);
       }
@@ -96,20 +104,19 @@ export default function OrbitScreen() {
     if (tasks.length > 0 && db) {
       const now = Date.now();
       tasks.forEach(task => {
-        // "Sun Eating" Logic: 
-        // If deadline passed, we let it linger for 1 second (visual consumption) then delete
         if (task.deadline <= now - 2000) {
-          db.runAsync('DELETE FROM tasks WHERE id = ?', [task.id]);
-          setTasks(prev => prev.filter(t => t.id !== task.id));
+          deleteTaskCascade(task.id);
         }
       });
     }
   }, [globalTime]);
 
-  const refreshTasks = async () => {
-    if (db) {
-      const result = await db.getAllAsync('SELECT * FROM tasks');
-      setTasks(result);
+  const refreshData = async (database = db) => {
+    if (database) {
+      const tasksResult = await database.getAllAsync('SELECT * FROM tasks');
+      const subTasksResult = await database.getAllAsync('SELECT * FROM subtasks');
+      setTasks(tasksResult);
+      setSubTasks(subTasksResult);
     }
   };
 
@@ -124,13 +131,10 @@ export default function OrbitScreen() {
     }
 
     const deadline = Date.now() + duration;
-
     const result = await db.runAsync('INSERT INTO tasks (title, deadline) VALUES (?, ?)', [newTaskText, deadline]);
 
-    // Trigger "Warp In" animation for this new ID
     if (result.lastInsertRowId) {
       setAnimatingIds(prev => [...prev, result.lastInsertRowId]);
-      // Remove from animating list after 1s
       setTimeout(() => {
         setAnimatingIds(prev => prev.filter(id => id !== result.lastInsertRowId));
       }, 1000);
@@ -138,15 +142,33 @@ export default function OrbitScreen() {
 
     setNewTaskText("");
     if (isCustomMode) setCustomHours("");
-    refreshTasks();
+    refreshData();
   };
 
-  const completeTask = async (id: number) => {
+  const addSubTask = async () => {
+    if (!newSubTaskText || !selectedTask || !db) return;
+    await db.runAsync('INSERT INTO subtasks (parent_id, title) VALUES (?, ?)', [selectedTask.id, newSubTaskText]);
+    setNewSubTaskText("");
+    refreshData();
+  }
+
+  const toggleSubTask = async (subId: number, currentStatus: number) => {
+    if (!db) return;
+    const newStatus = currentStatus === 1 ? 0 : 1;
+    await db.runAsync('UPDATE subtasks SET is_completed = ? WHERE id = ?', [newStatus, subId]);
+    refreshData();
+  }
+
+  const deleteTaskCascade = async (id: number) => {
     if (!db) return;
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    // Delete subtasks first
+    await db.runAsync('DELETE FROM subtasks WHERE parent_id = ?', [id]);
+    // Delete parent
     await db.runAsync('DELETE FROM tasks WHERE id = ?', [id]);
-    setSelectedTask(null);
-    refreshTasks();
+
+    if (selectedTask?.id === id) setSelectedTask(null);
+    refreshData();
   };
 
   const toggleControls = () => {
@@ -156,48 +178,54 @@ export default function OrbitScreen() {
 
   const renderSolarSystem = () => {
     return tasks.map((task, index) => {
+      // 1. Planet Physics
       const timeRemaining = task.deadline - globalTime;
       const hoursRemaining = Math.max(0, timeRemaining / (1000 * 60 * 60));
 
-      let orbitRadius = SUN_RADIUS + 20 + (hoursRemaining * 6);
+      let orbitRadius = SUN_RADIUS + 25 + (hoursRemaining * 6);
       if (orbitRadius > width / 2 - 20) orbitRadius = width / 2 - 20;
 
-      // SUN EATING ANIMATION: 
-      // If timeRemaining is negative, spiral into the sun (radius -> 0)
       if (timeRemaining < 0) {
         orbitRadius = Math.max(0, SUN_RADIUS * (1 - Math.abs(timeRemaining) / 2000));
       }
 
-      // Constant Velocity
-      const angle = (index * 2) + (globalTime * 0.0002);
+      const planetAngle = (index * 2) + (globalTime * 0.0002);
+      const planetX = CENTER_X + orbitRadius * Math.cos(planetAngle);
+      const planetY = CENTER_Y + orbitRadius * Math.sin(planetAngle);
 
-      const x = CENTER_X + orbitRadius * Math.cos(angle);
-      const y = CENTER_Y + orbitRadius * Math.sin(angle);
-
-      // Color Palette
-      let planetColor = "#3742fa";
-      if (hoursRemaining < 1) planetColor = "#ff4757";
-      else if (hoursRemaining < 6) planetColor = "#ffa502";
-      else if (hoursRemaining < 24) planetColor = "#f1c40f";
-      else if (hoursRemaining < 48) planetColor = "#2ecc71";
-
-      // Visual Effects
+      // 2. Planet Visuals
       const isWarpingIn = animatingIds.includes(task.id);
       let planetSize = 8 + (hoursRemaining < 1 ? (Math.sin(globalTime / 200) * 2 + 2) : 0);
-
-      // Scale up if warping in
-      if (isWarpingIn) {
-        planetSize = 0; // The animation logic would ideally interpolate this, 
-        // but for simple SVG without reanimated, we just let it appear. 
-        // Let's rely on the pulse effect for visual interest instead.
-      }
-
-      // Sun Consumption Shrink
+      if (isWarpingIn) planetSize = 0;
       if (timeRemaining < 0) planetSize = Math.max(0, 8 * (1 - Math.abs(timeRemaining) / 2000));
+
+      // 3. Render Moons (Subtasks)
+      const myMoons = subTasks.filter(st => st.parent_id === task.id && st.is_completed === 0);
+
+      const renderMoons = () => {
+        return myMoons.map((moon, mIndex) => {
+          const moonOrbitRadius = 15; // Distance from planet
+          const moonSpeed = 0.002; // Faster than planet
+          const moonAngle = (mIndex * (Math.PI * 2 / myMoons.length)) + (globalTime * moonSpeed);
+
+          const moonX = planetX + moonOrbitRadius * Math.cos(moonAngle);
+          const moonY = planetY + moonOrbitRadius * Math.sin(moonAngle);
+
+          return (
+            <Circle
+              key={`moon_${moon.id}`}
+              cx={moonX}
+              cy={moonY}
+              r={2}
+              fill="#bdc3c7"
+              opacity={timeRemaining > 0 ? 0.8 : 0}
+            />
+          );
+        });
+      };
 
       return (
         <G key={task.id} onPress={() => setSelectedTask(task)}>
-          {/* Track (Only show if alive) */}
           {timeRemaining > 0 && (
             <Circle
               cx={CENTER_X} cy={CENTER_Y} r={orbitRadius}
@@ -205,19 +233,17 @@ export default function OrbitScreen() {
             />
           )}
 
-          {/* Planet Glow/Shadow Container */}
-          <G transform={`translate(${x}, ${y})`}>
-            {/* The Sphere Gradient */}
-            <Circle r={planetSize} fill={`url(#grad_${task.id % 5})`} />
+          {/* Draw Moons first so they go behind planet sometimes (simple z-index via order) */}
+          {timeRemaining > 0 && renderMoons()}
 
-            {/* Rim Light (Simulated 3D) */}
+          <G transform={`translate(${planetX}, ${planetY})`}>
+            <Circle r={planetSize} fill={`url(#grad_${task.id % 5})`} />
             <Circle r={planetSize} stroke="rgba(255,255,255,0.4)" strokeWidth={1} opacity={0.5} />
           </G>
 
-          {/* Label (Hide if being eaten) */}
           {timeRemaining > 0 && (
             <SvgText
-              x={x + 12} y={y + 4} fill="#aaa" fontSize="10" fontWeight="bold" opacity={0.8}
+              x={planetX + 12} y={planetY + 4} fill="#aaa" fontSize="10" fontWeight="bold" opacity={0.8}
             >
               {task.title.length > 8 ? task.title.substring(0, 8) + ".." : task.title}
             </SvgText>
@@ -253,7 +279,6 @@ export default function OrbitScreen() {
     return mins + " Mins left";
   }
 
-  // Calculate Sun Breathing
   const sunPulse = 1 + Math.sin(globalTime / 800) * 0.05;
 
   return (
@@ -262,41 +287,34 @@ export default function OrbitScreen() {
 
       <View style={styles.header}>
         <Text style={styles.title}>ORBIT</Text>
-        <Text style={styles.subtitle}>{tasks.length} Active Missions</Text>
+        <Text style={styles.subtitle}>{tasks.length} Systems Active</Text>
       </View>
 
       <View style={styles.orbitContainer}>
         <Svg height={height * 0.75} width={width}>
           <Defs>
-            {/* Sun Gradient */}
             <RadialGradient id="sunGrad" cx="50%" cy="50%" rx="50%" ry="50%">
               <Stop offset="0%" stopColor="#ffdd59" stopOpacity="1" />
               <Stop offset="70%" stopColor="#ffa502" stopOpacity="0.8" />
               <Stop offset="100%" stopColor="#ff4757" stopOpacity="0" />
             </RadialGradient>
 
-            {/* Planet Gradients (Simple 3D effect) */}
-            {/* Red */}
             <RadialGradient id="grad_0" cx="30%" cy="30%" rx="50%" ry="50%">
               <Stop offset="0%" stopColor="#ff6b81" stopOpacity="1" />
               <Stop offset="100%" stopColor="#c0392b" stopOpacity="1" />
             </RadialGradient>
-            {/* Orange */}
             <RadialGradient id="grad_1" cx="30%" cy="30%" rx="50%" ry="50%">
               <Stop offset="0%" stopColor="#f1c40f" stopOpacity="1" />
               <Stop offset="100%" stopColor="#e67e22" stopOpacity="1" />
             </RadialGradient>
-            {/* Yellow */}
             <RadialGradient id="grad_2" cx="30%" cy="30%" rx="50%" ry="50%">
               <Stop offset="0%" stopColor="#f1c40f" stopOpacity="1" />
               <Stop offset="100%" stopColor="#f39c12" stopOpacity="1" />
             </RadialGradient>
-            {/* Green */}
             <RadialGradient id="grad_3" cx="30%" cy="30%" rx="50%" ry="50%">
               <Stop offset="0%" stopColor="#2ecc71" stopOpacity="1" />
               <Stop offset="100%" stopColor="#27ae60" stopOpacity="1" />
             </RadialGradient>
-            {/* Blue */}
             <RadialGradient id="grad_4" cx="30%" cy="30%" rx="50%" ry="50%">
               <Stop offset="0%" stopColor="#3742fa" stopOpacity="1" />
               <Stop offset="100%" stopColor="#0984e3" stopOpacity="1" />
@@ -305,11 +323,8 @@ export default function OrbitScreen() {
 
           <StarField />
 
-          {/* The Sun (Breathing) */}
           <G transform={`translate(${CENTER_X}, ${CENTER_Y}) scale(${sunPulse})`}>
-            {/* Inner Core */}
             <Circle cx={0} cy={0} r={SUN_RADIUS} fill="url(#sunGrad)" />
-            {/* Outer Glow */}
             <Circle cx={0} cy={0} r={SUN_RADIUS + 15} fill="#ffa502" opacity={0.15} />
             <Circle cx={0} cy={0} r={SUN_RADIUS + 30} fill="#ffa502" opacity={0.05} />
           </G>
@@ -318,10 +333,8 @@ export default function OrbitScreen() {
         </Svg>
       </View>
 
-      {/* CONTROLS CONTAINER */}
       <View style={[styles.controls, isControlsMinimized && styles.controlsMinimized]}>
 
-        {/* Toggle Handle */}
         <TouchableOpacity
           style={styles.handleBar}
           onPress={toggleControls}
@@ -330,7 +343,6 @@ export default function OrbitScreen() {
           <Text style={styles.handleText}>{isControlsMinimized ? "ADD MISSION" : "MINIMIZE"}</Text>
         </TouchableOpacity>
 
-        {/* Content (Hidden when minimized) */}
         {!isControlsMinimized && (
           <>
             <View style={styles.orbitSelector}>
@@ -390,22 +402,60 @@ export default function OrbitScreen() {
           <View style={styles.modalBox}>
             {selectedTask && (
               <>
-                <Text style={styles.modalTitle}>{selectedTask.title}</Text>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>{selectedTask.title}</Text>
+                  <TouchableOpacity onPress={() => setSelectedTask(null)}>
+                    <Text style={styles.closeText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
                 <View style={styles.modalBadge}>
                   <Text style={styles.modalBadgeText}>
                     {getFormatTime(selectedTask.deadline - Date.now())}
                   </Text>
                 </View>
-                <Text style={styles.modalDesc}>
-                  {(selectedTask.deadline - Date.now()) < 3600000
-                    ? "CRITICAL: Entering Sun's Atmosphere!"
-                    : "Orbit stable."}
-                </Text>
-                <TouchableOpacity style={styles.completeBtn} onPress={() => completeTask(selectedTask.id)}>
+
+                {/* SUBTASKS SECTION */}
+                <View style={styles.subtaskList}>
+                  <Text style={styles.subtaskHeader}>MOONS (Sub-tasks)</Text>
+
+                  <FlatList
+                    data={subTasks.filter(s => s.parent_id === selectedTask.id)}
+                    keyExtractor={item => item.id.toString()}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={styles.subtaskItem}
+                        onPress={() => toggleSubTask(item.id, item.is_completed)}
+                      >
+                        <View style={[styles.checkbox, item.is_completed && styles.checkboxChecked]} />
+                        <Text style={[styles.subtaskText, item.is_completed && styles.subtaskTextDone]}>
+                          {item.title}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    ListEmptyComponent={<Text style={styles.emptySub}>No moons yet.</Text>}
+                    style={{ maxHeight: 150 }}
+                  />
+
+                  {/* Add Subtask Input */}
+                  <View style={styles.subtaskInputRow}>
+                    <TextInput
+                      style={styles.subtaskInput}
+                      placeholder="+ Add Moon..."
+                      placeholderTextColor="#555"
+                      value={newSubTaskText}
+                      onChangeText={setNewSubTaskText}
+                    />
+                    {newSubTaskText.length > 0 && (
+                      <TouchableOpacity onPress={addSubTask}>
+                        <Text style={styles.addSubText}>ADD</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+
+                <TouchableOpacity style={styles.completeBtn} onPress={() => deleteTaskCascade(selectedTask.id)}>
                   <Text style={styles.completeText}>COMPLETE MISSION</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.closeBtn} onPress={() => setSelectedTask(null)}>
-                  <Text style={styles.closeText}>CLOSE</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -417,7 +467,7 @@ export default function OrbitScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0c0c14' }, // Darker background for space
+  container: { flex: 1, backgroundColor: '#0c0c14' },
   header: { paddingTop: 60, paddingHorizontal: 20, alignItems: 'center' },
   title: { color: 'white', fontSize: 32, fontWeight: '900', letterSpacing: 5 },
   subtitle: { color: '#808e9b', fontSize: 14, letterSpacing: 1 },
@@ -443,14 +493,29 @@ const styles = StyleSheet.create({
   input: { flex: 1, backgroundColor: '#2a2d3a', borderRadius: 15, color: 'white', paddingHorizontal: 20, height: 55, marginRight: 10, borderWidth: 1, borderColor: '#485460' },
   launchBtn: { backgroundColor: '#0be881', borderRadius: 15, justifyContent: 'center', paddingHorizontal: 20 },
   launchText: { color: '#1e272e', fontWeight: '900', letterSpacing: 1 },
+
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
-  modalBox: { width: '85%', backgroundColor: '#1e2029', borderRadius: 25, padding: 30, alignItems: 'center', shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 20 },
-  modalTitle: { color: 'white', fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
-  modalBadge: { backgroundColor: '#2a2d3a', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginTop: 15 },
+  modalBox: { width: '90%', backgroundColor: '#1e2029', borderRadius: 25, padding: 25, shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 20 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  modalTitle: { color: 'white', fontSize: 24, fontWeight: 'bold', flex: 1 },
+  closeText: { color: '#808e9b', fontSize: 24, fontWeight: 'bold', padding: 5 },
+
+  modalBadge: { alignSelf: 'flex-start', backgroundColor: '#2a2d3a', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginTop: 5, marginBottom: 20 },
   modalBadgeText: { color: '#d2dae2', fontSize: 12, fontWeight: 'bold' },
-  modalDesc: { color: '#808e9b', textAlign: 'center', marginVertical: 25, fontSize: 16 },
-  completeBtn: { backgroundColor: '#0be881', width: '100%', paddingVertical: 18, borderRadius: 15, alignItems: 'center', marginBottom: 15 },
-  completeText: { color: '#1e272e', fontWeight: '900', fontSize: 16, letterSpacing: 1 },
-  closeBtn: { padding: 10 },
-  closeText: { color: '#808e9b' }
+
+  subtaskList: { marginBottom: 20, backgroundColor: '#15171e', padding: 15, borderRadius: 15 },
+  subtaskHeader: { color: '#808e9b', fontSize: 10, fontWeight: 'bold', marginBottom: 10, letterSpacing: 1 },
+  subtaskItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  checkbox: { width: 18, height: 18, borderRadius: 6, borderWidth: 2, borderColor: '#485460', marginRight: 10 },
+  checkboxChecked: { backgroundColor: '#0be881', borderColor: '#0be881' },
+  subtaskText: { color: '#d2dae2', fontSize: 14 },
+  subtaskTextDone: { color: '#555', textDecorationLine: 'line-through' },
+  emptySub: { color: '#444', fontStyle: 'italic', marginBottom: 10 },
+
+  subtaskInputRow: { flexDirection: 'row', alignItems: 'center', marginTop: 5, borderTopWidth: 1, borderTopColor: '#2a2d3a', paddingTop: 10 },
+  subtaskInput: { flex: 1, color: 'white', fontSize: 14 },
+  addSubText: { color: '#0be881', fontWeight: 'bold', paddingLeft: 10 },
+
+  completeBtn: { backgroundColor: '#0be881', width: '100%', paddingVertical: 18, borderRadius: 15, alignItems: 'center' },
+  completeText: { color: '#1e272e', fontWeight: '900', fontSize: 16, letterSpacing: 1 }
 });
