@@ -1,6 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Dimensions, FlatList, LayoutAnimation, Modal, Platform, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View } from 'react-native';
+import { Animated, Dimensions, FlatList, LayoutAnimation, Modal, Platform, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View } from 'react-native';
 import Svg, { Circle, Defs, G, RadialGradient, Stop, Text as SvgText } from 'react-native-svg';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -14,7 +14,6 @@ const SUN_RADIUS = 35;
 
 const getPlanetPalette = (deadline: number, now: number) => {
   const hoursRemaining = (deadline - now) / (1000 * 60 * 60);
-
   if (hoursRemaining < 1) return ["#ff4757", "#c0392b"];
   if (hoursRemaining < 6) return ["#ffa502", "#e67e22"];
   if (hoursRemaining < 24) return ["#f1c40f", "#f39c12"];
@@ -24,7 +23,7 @@ const getPlanetPalette = (deadline: number, now: number) => {
 
 const StarField = React.memo(() => {
   const stars = useMemo(() => {
-    return Array.from({ length: 80 }).map((_, i) => ({
+    return Array.from({ length: 100 }).map((_, i) => ({
       key: i,
       x: Math.random() * width,
       y: Math.random() * height * 0.8,
@@ -42,6 +41,56 @@ const StarField = React.memo(() => {
   );
 });
 
+const SciFiCalendar = ({ onSelectDate, onClose }: { onSelectDate: (ms: number) => void, onClose: () => void }) => {
+  const today = new Date();
+  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
+  const [currentYear, setCurrentYear] = useState(today.getFullYear());
+
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+
+  const generateDays = () => {
+    const days = [];
+    for (let i = 0; i < firstDay; i++) days.push(<View key={`empty_${i}`} style={styles.calDayEmpty} />);
+    for (let i = 1; i <= daysInMonth; i++) {
+      const date = new Date(currentYear, currentMonth, i);
+      const isToday = i === today.getDate() && currentMonth === today.getMonth();
+      days.push(
+        <TouchableOpacity
+          key={i}
+          style={[styles.calDay, isToday && styles.calDayToday]}
+          onPress={() => onSelectDate(date.getTime() + (12 * 60 * 60 * 1000))}
+        >
+          <Text style={[styles.calDayText, isToday && styles.calDayTextToday]}>{i}</Text>
+        </TouchableOpacity>
+      );
+    }
+    return days;
+  };
+
+  const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+
+  return (
+    <Modal transparent animationType="fade" visible={true} onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.calContainer}>
+          <View style={styles.calHeader}>
+            <TouchableOpacity onPress={() => setCurrentMonth(prev => prev - 1)}><Text style={styles.calNav}>{'<'}</Text></TouchableOpacity>
+            <Text style={styles.calTitle}>{monthNames[currentMonth]} {currentYear}</Text>
+            <TouchableOpacity onPress={() => setCurrentMonth(prev => prev + 1)}><Text style={styles.calNav}>{'>'}</Text></TouchableOpacity>
+          </View>
+          <View style={styles.calGrid}>
+            {generateDays()}
+          </View>
+          <TouchableOpacity style={styles.calClose} onPress={onClose}>
+            <Text style={styles.calCloseText}>CANCEL</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 export default function OrbitScreen() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [subTasks, setSubTasks] = useState<any[]>([]);
@@ -50,8 +99,11 @@ export default function OrbitScreen() {
 
   const [selectedDuration, setSelectedDuration] = useState(3600000);
   const [isCustomMode, setIsCustomMode] = useState(false);
+  const [isCalendarMode, setIsCalendarMode] = useState(false);
   const [customHours, setCustomHours] = useState("");
+
   const [isControlsMinimized, setIsControlsMinimized] = useState(false);
+  const slideAnim = useRef(new Animated.Value(0)).current;
 
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [newSubTaskText, setNewSubTaskText] = useState("");
@@ -63,7 +115,7 @@ export default function OrbitScreen() {
   useEffect(() => {
     async function setup() {
       try {
-        const database = await SQLite.openDatabaseAsync('orbit_v11_smooth.db');
+        const database = await SQLite.openDatabaseAsync('orbit_v12_full.db');
         setDb(database);
 
         await database.execAsync(`
@@ -93,7 +145,7 @@ export default function OrbitScreen() {
     startGameLoop();
   }, []);
 
-  const requestRef = useRef<number>(0);
+  const requestRef = useRef<number>();
 
   const startGameLoop = () => {
     const animate = () => {
@@ -102,6 +154,15 @@ export default function OrbitScreen() {
     };
     requestRef.current = requestAnimationFrame(animate);
   };
+
+  useEffect(() => {
+    Animated.spring(slideAnim, {
+      toValue: isControlsMinimized ? 150 : 0,
+      useNativeDriver: true,
+      friction: 8,
+      tension: 40
+    }).start();
+  }, [isControlsMinimized]);
 
   useEffect(() => {
     if (tasks.length > 0 && db) {
@@ -127,14 +188,15 @@ export default function OrbitScreen() {
     if (!newTaskText || !db) return;
 
     let duration = selectedDuration;
-    if (isCustomMode) {
+    if (isCustomMode && !isCalendarMode) {
       const hours = parseFloat(customHours);
       if (isNaN(hours) || hours <= 0) return;
       duration = hours * 3600000;
     }
 
     const now = Date.now();
-    const deadline = now + duration;
+    const deadline = isCalendarMode ? selectedDuration : (now + duration);
+
     const result = await db.runAsync('INSERT INTO tasks (title, deadline, created_at) VALUES (?, ?, ?)', [newTaskText, deadline, now]);
 
     if (result.lastInsertRowId) {
@@ -178,7 +240,6 @@ export default function OrbitScreen() {
   };
 
   const toggleControls = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setIsControlsMinimized(!isControlsMinimized);
   }
 
@@ -188,7 +249,6 @@ export default function OrbitScreen() {
     if (total === 0) return null;
 
     const completed = mySubTasks.filter(s => s.is_completed).length;
-
     const [mainColor, shadowColor] = getPlanetPalette(deadline, globalTime);
 
     let currentRadius = 30 + (completed * 8);
@@ -215,30 +275,11 @@ export default function OrbitScreen() {
             </RadialGradient>
           </Defs>
 
-          <Circle
-            cx={(width * 0.4) + offsetX}
-            cy={70 + offsetY}
-            r={currentRadius}
-            fill={flashFill}
-          />
-          <Circle
-            cx={(width * 0.4) + offsetX}
-            cy={70 + offsetY}
-            r={currentRadius}
-            stroke="white"
-            strokeWidth={2}
-            opacity={0.3}
-          />
+          <Circle cx={(width * 0.4) + offsetX} cy={70 + offsetY} r={currentRadius} fill={flashFill} />
+          <Circle cx={(width * 0.4) + offsetX} cy={70 + offsetY} r={currentRadius} stroke="white" strokeWidth={2} opacity={0.3} />
 
           {impactState && impactState.id === taskId && (
-            <Circle
-              cx={(width * 0.4)}
-              cy={70}
-              r={currentRadius + 15}
-              stroke="white"
-              strokeWidth={2}
-              opacity={0.5}
-            />
+            <Circle cx={(width * 0.4)} cy={70} r={currentRadius + 15} stroke="white" strokeWidth={2} opacity={0.5} />
           )}
 
           {incompleteMoons.map((moon, i) => {
@@ -246,15 +287,34 @@ export default function OrbitScreen() {
             const angle = (i * (Math.PI * 2 / Math.max(1, incompleteMoons.length))) + (globalTime * 0.001);
             const mx = (width * 0.4) + orbitR * Math.cos(angle);
             const my = 70 + orbitR * Math.sin(angle);
-
-            return (
-              <Circle key={`preview_moon_${moon.id}`} cx={mx} cy={my} r={4} fill="#bdc3c7" />
-            )
+            return <Circle key={`preview_moon_${moon.id}`} cx={mx} cy={my} r={4} fill="#bdc3c7" />
           })}
         </Svg>
         <Text style={styles.progressText}>{completed}/{total} Mass Absorbed</Text>
       </View>
     )
+  }
+
+  const renderBackgroundRings = () => {
+    const times = [1, 6, 12, 24, 72, 168];
+    return times.map((t, i) => {
+      let r = SUN_RADIUS + 25 + (t * 6);
+      if (r > width / 2 - 20) r = width / 2 - 20;
+      if (i > 0 && r <= (SUN_RADIUS + 25 + (times[i - 1] * 6))) return null;
+
+      return (
+        <Circle
+          key={`ring_${t}`}
+          cx={CENTER_X}
+          cy={CENTER_Y}
+          r={r}
+          stroke="rgba(255,255,255,0.05)"
+          strokeWidth="1"
+          strokeDasharray="5, 5"
+          fill="none"
+        />
+      );
+    });
   }
 
   const renderSolarSystem = () => {
@@ -304,7 +364,6 @@ export default function OrbitScreen() {
       }
 
       const planetSize = 8;
-
       const myMoons = subTasks.filter(st => st.parent_id === task.id && st.is_completed === 0);
 
       return (
@@ -319,7 +378,7 @@ export default function OrbitScreen() {
           {!isDying && (
             <Circle
               cx={CENTER_X} cy={CENTER_Y} r={orbitRadius}
-              stroke="rgba(255,255,255,0.03)" strokeWidth="1" fill="none"
+              stroke="rgba(255,255,255,0.08)" strokeWidth="1" fill="none"
             />
           )}
 
@@ -328,9 +387,7 @@ export default function OrbitScreen() {
             const moonAngle = (mIndex * (Math.PI * 2 / myMoons.length)) + (globalTime * 0.002);
             const mx = planetX + moonOrbitRadius * Math.cos(moonAngle);
             const my = planetY + moonOrbitRadius * Math.sin(moonAngle);
-            return (
-              <Circle key={`moon_${moon.id}`} cx={mx} cy={my} r={2 * scale} fill="#bdc3c7" opacity={0.8} />
-            );
+            return <Circle key={`moon_${moon.id}`} cx={mx} cy={my} r={2 * scale} fill="#bdc3c7" opacity={0.8} />;
           })}
 
           <G transform={`translate(${planetX}, ${planetY}) scale(${scale})`}>
@@ -354,18 +411,26 @@ export default function OrbitScreen() {
     { label: "1h", ms: 3600000 },
     { label: "6h", ms: 21600000 },
     { label: "1d", ms: 86400000 },
-    { label: "3d", ms: 259200000 },
-    { label: "Custom", ms: -1 },
+    { label: "Cal", ms: -2 },
+    { label: "Edit", ms: -1 },
   ];
 
   const handleDurationSelect = (ms: number) => {
     if (ms === -1) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setIsCustomMode(true);
+      setIsCalendarMode(false);
+    } else if (ms === -2) {
+      setIsCalendarMode(true);
     } else {
       setIsCustomMode(false);
+      setIsCalendarMode(false);
       setSelectedDuration(ms);
     }
+  }
+
+  const handleDatePicked = (timestamp: number) => {
+    setSelectedDuration(timestamp);
+    setIsCalendarMode(false);
   }
 
   const getFormatTime = (ms: number) => {
@@ -400,6 +465,7 @@ export default function OrbitScreen() {
           </Defs>
 
           <StarField />
+          {renderBackgroundRings()}
 
           <G transform={`translate(${CENTER_X}, ${CENTER_Y}) scale(${sunPulse})`}>
             <Circle cx={0} cy={0} r={SUN_RADIUS} fill="url(#sunGrad)" />
@@ -411,69 +477,70 @@ export default function OrbitScreen() {
         </Svg>
       </View>
 
-      <View style={[styles.controls, isControlsMinimized && styles.controlsMinimized]}>
+      <Animated.View style={[styles.controls, { transform: [{ translateY: slideAnim }] }]}>
 
-        <TouchableOpacity
-          style={styles.handleBar}
-          onPress={toggleControls}
-        >
+        <TouchableOpacity style={styles.handleBar} onPress={toggleControls}>
           <View style={styles.handleIcon} />
           <Text style={styles.handleText}>{isControlsMinimized ? "ADD MISSION" : "MINIMIZE"}</Text>
         </TouchableOpacity>
 
-        {!isControlsMinimized && (
-          <>
-            <View style={styles.orbitSelector}>
-              <Text style={styles.controlLabel}>DEADLINE</Text>
-              <View style={styles.orbitBtns}>
-                {durationOptions.map((opt) => (
-                  <TouchableOpacity
-                    key={opt.label}
-                    style={[
-                      styles.lvlBtn,
-                      !isCustomMode && selectedDuration === opt.ms && styles.lvlBtnActive,
-                      isCustomMode && opt.ms === -1 && styles.lvlBtnActive
-                    ]}
-                    onPress={() => handleDurationSelect(opt.ms)}
-                  >
-                    <Text style={[
-                      styles.lvlText,
-                      !isCustomMode && selectedDuration === opt.ms && styles.lvlTextActive,
-                      isCustomMode && opt.ms === -1 && styles.lvlTextActive
-                    ]}>{opt.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {isCustomMode && (
-              <View style={styles.customRow}>
-                <TextInput
-                  style={styles.customInput}
-                  placeholder="Enter Hours (e.g. 0.5 or 24)"
-                  placeholderTextColor="#666"
-                  value={customHours}
-                  onChangeText={setCustomHours}
-                  keyboardType="numeric"
-                />
-              </View>
-            )}
-
-            <View style={styles.inputRow}>
-              <TextInput
-                style={styles.input}
-                placeholder="New Task Name..."
-                placeholderTextColor="#666"
-                value={newTaskText}
-                onChangeText={setNewTaskText}
-              />
-              <TouchableOpacity style={styles.launchBtn} onPress={addTask}>
-                <Text style={styles.launchText}>LAUNCH</Text>
+        <View style={styles.orbitSelector}>
+          <Text style={styles.controlLabel}>DEADLINE</Text>
+          <View style={styles.orbitBtns}>
+            {durationOptions.map((opt) => (
+              <TouchableOpacity
+                key={opt.label}
+                style={[
+                  styles.lvlBtn,
+                  !isCustomMode && !isCalendarMode && selectedDuration === opt.ms && styles.lvlBtnActive,
+                  ((isCustomMode && opt.ms === -1) || (isCalendarMode && opt.ms === -2)) && styles.lvlBtnActive
+                ]}
+                onPress={() => handleDurationSelect(opt.ms)}
+              >
+                <Text style={[
+                  styles.lvlText,
+                  (!isCustomMode && !isCalendarMode && selectedDuration === opt.ms) ||
+                    ((isCustomMode && opt.ms === -1) || (isCalendarMode && opt.ms === -2))
+                    ? styles.lvlTextActive : null
+                ]}>{opt.label}</Text>
               </TouchableOpacity>
-            </View>
-          </>
+            ))}
+          </View>
+        </View>
+
+        {isCustomMode && (
+          <View style={styles.customRow}>
+            <TextInput
+              style={styles.customInput}
+              placeholder="Enter Hours..."
+              placeholderTextColor="#666"
+              value={customHours}
+              onChangeText={setCustomHours}
+              keyboardType="numeric"
+            />
+          </View>
         )}
-      </View>
+
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.input}
+            placeholder="New Task Name..."
+            placeholderTextColor="#666"
+            value={newTaskText}
+            onChangeText={setNewTaskText}
+          />
+          <TouchableOpacity style={styles.launchBtn} onPress={addTask}>
+            <Text style={styles.launchText}>LAUNCH</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+
+      {isCalendarMode && (
+        <SciFiCalendar
+          onSelectDate={handleDatePicked}
+          onClose={() => setIsCalendarMode(false)}
+        />
+      )}
 
       <Modal transparent animationType="fade" visible={!!selectedTask} onRequestClose={() => setSelectedTask(null)}>
         <View style={styles.modalOverlay}>
@@ -551,8 +618,21 @@ const styles = StyleSheet.create({
   subtitle: { color: '#808e9b', fontSize: 14, letterSpacing: 1 },
   orbitContainer: { flex: 1 },
 
-  controls: { backgroundColor: '#1e2029', padding: 20, paddingBottom: 100, borderTopLeftRadius: 30, borderTopRightRadius: 30, shadowColor: '#000', shadowOffset: { width: 0, height: -5 }, shadowOpacity: 0.5, shadowRadius: 10 },
-  controlsMinimized: { paddingBottom: 30, height: 90 },
+  controls: {
+    backgroundColor: '#1e2029',
+    padding: 20,
+    paddingBottom: 40,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    height: 280,
+  },
 
   handleBar: { alignItems: 'center', paddingBottom: 15, marginBottom: 5 },
   handleIcon: { width: 40, height: 4, backgroundColor: '#485460', borderRadius: 2, marginBottom: 5 },
@@ -596,5 +676,18 @@ const styles = StyleSheet.create({
   addSubText: { color: '#0be881', fontWeight: 'bold', paddingLeft: 10 },
 
   completeBtn: { backgroundColor: '#0be881', width: '100%', paddingVertical: 18, borderRadius: 15, alignItems: 'center' },
-  completeText: { color: '#1e272e', fontWeight: '900', fontSize: 16, letterSpacing: 1 }
+  completeText: { color: '#1e272e', fontWeight: '900', fontSize: 16, letterSpacing: 1 },
+
+  calContainer: { width: '85%', backgroundColor: '#1e2029', borderRadius: 25, padding: 20, alignItems: 'center' },
+  calHeader: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 20, paddingHorizontal: 10 },
+  calTitle: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+  calNav: { color: '#0be881', fontSize: 20, fontWeight: 'bold' },
+  calGrid: { flexDirection: 'row', flexWrap: 'wrap', width: '100%' },
+  calDay: { width: '14.28%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center', marginVertical: 2 },
+  calDayEmpty: { width: '14.28%', aspectRatio: 1 },
+  calDayText: { color: '#808e9b', fontWeight: 'bold' },
+  calDayToday: { backgroundColor: '#2a2d3a', borderRadius: 10, borderWidth: 1, borderColor: '#0be881' },
+  calDayTextToday: { color: 'white' },
+  calClose: { marginTop: 20 },
+  calCloseText: { color: '#ff4757', fontWeight: 'bold' }
 });
