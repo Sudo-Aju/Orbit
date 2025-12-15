@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as SQLite from 'expo-sqlite';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, Easing, FlatList, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View } from 'react-native';
+import { Alert, Animated, Dimensions, Easing, FlatList, LayoutAnimation, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, Line, Path, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -21,22 +21,7 @@ const triggerHaptic = (type: 'light' | 'medium' | 'heavy' | 'success') => {
     case 'success': Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); break;
   }
 };
-const getCategoryPalette = (cat: string) => {
-  const predefined: { [key: string]: string[] } = {
-    "Work": ["#ff4757", "#c0392b"],  
-    "Personal": ["#f1c40f", "#f39c12"],  
-    "Health": ["#ffffff", "#dfe6e9"],  
-    "Ideas": ["#ffa502", "#e67e22"],  
-    "General": ["#f7f1e3", "#d1ccc0"]  
-  };
-  if (predefined[cat]) return predefined[cat];
-  let hash = 0;
-  for (let i = 0; i < cat.length; i++) hash = cat.charCodeAt(i) + ((hash << 5) - hash);
-  const hues = [0, 30, 45, 60];
-  const hue = hues[Math.abs(hash) % hues.length];
-  const color = `hsl(${hue}, 90%, 60%)`;
-  return [color, color];
-}
+
 const CutsceneOverlay = ({ type, taskType, color, onFinish }: { type: 'launch' | 'destroy', taskType?: 'planet' | 'comet' | 'satellite', color: string, onFinish: () => void }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const objectAnim = useRef(new Animated.Value(0)).current;
@@ -48,7 +33,7 @@ const CutsceneOverlay = ({ type, taskType, color, onFinish }: { type: 'launch' |
     Animated.loop(
       Animated.timing(spinAnim, {
         toValue: 1,
-        duration: 8000,  
+        duration: 8000,
         easing: Easing.linear,
         useNativeDriver: true
       })
@@ -79,22 +64,22 @@ const CutsceneOverlay = ({ type, taskType, color, onFinish }: { type: 'launch' |
   const flameFlicker = shakeAnim.interpolate({ inputRange: [-2, 2], outputRange: [0.8, 1.2] });
   const rocketTranslate = objectAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [height * 0.5, -height]  
+    outputRange: [height * 0.5, -height]
   });
   const planetFormScale = objectAnim.interpolate({ inputRange: [0, 1], outputRange: [0.1, 1.5] });
   const planetOpacity = objectAnim.interpolate({ inputRange: [0, 0.7, 1], outputRange: [0, 1, 1] });
   const cometTranslateX = objectAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [-width * 0.6, width * 0.6]  
+    outputRange: [-width * 0.6, width * 0.6]
   });
   const cometTranslateY = objectAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [height * 0.3, -height * 0.3]  
+    outputRange: [height * 0.3, -height * 0.3]
   });
   const tailStretch = objectAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.5, 1] });
   const explosionScale = objectAnim.interpolate({
     inputRange: [0, 0.5, 1],
-    outputRange: [0.1, 3, 0]  
+    outputRange: [0.1, 3, 0]
   });
   const renderVisual = () => {
     if (type === 'destroy') {
@@ -206,21 +191,79 @@ const CutsceneOverlay = ({ type, taskType, color, onFinish }: { type: 'launch' |
     </Animated.View>
   );
 }
-const StarField = React.memo(() => {
+const AnimatedLine = Animated.createAnimatedComponent(Line);
+
+const StarField = React.memo(({ trailMode }: { trailMode?: boolean }) => {
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (trailMode) {
+      
+      
+      anim.setValue(0);
+      Animated.timing(anim, {
+        toValue: 100000,
+        duration: 2000000, 
+        easing: Easing.linear,
+        useNativeDriver: false
+      }).start();
+    }
+  }, [trailMode]);
+
   const stars = useMemo(() => {
-    return Array.from({ length: 120 }).map((_, i) => ({
+    const count = trailMode ? 30 : 120; 
+    return Array.from({ length: count }).map((_, i) => ({
       key: i,
       x: Math.random() * width,
       y: Math.random() * height,
       r: Math.random() * 1.5 + 0.5,
-      opacity: Math.random() * 0.8 + 0.2
+      opacity: Math.random() * 0.8 + 0.2,
+      length: trailMode ? Math.random() * 30 + 10 : 0,
+      speedMulti: Math.random() * 0.5 + 0.5
     }));
-  }, []);
+  }, [trailMode]);
+
   return (
     <>
-      {stars.map((star) => (
-        <Circle key={star.key} cx={star.x} cy={star.y} r={star.r} fill="white" opacity={star.opacity} />
-      ))}
+      {stars.map((star) => {
+        if (trailMode) {
+          
+          
+          
+          
+
+          
+          
+          
+
+          
+          const speed = 5;
+          const moveX = Animated.multiply(anim, star.speedMulti * speed);
+          const moveY = Animated.multiply(anim, star.speedMulti * speed);
+
+          const xNode = Animated.modulo(Animated.add(star.x, moveX), width);
+          const yNode = Animated.modulo(Animated.add(star.y, moveY), height);
+
+          
+          const x2Node = Animated.add(xNode, -star.length);
+          const y2Node = Animated.add(yNode, -star.length);
+
+          return (
+            <AnimatedLine
+              key={`trail_${star.key}`}
+              x1={xNode}
+              y1={yNode}
+              x2={x2Node}
+              y2={y2Node}
+              stroke="white"
+              strokeWidth={star.r}
+              opacity={star.opacity * 0.6}
+            />
+          )
+        } else {
+          return <Circle key={star.key} cx={star.x} cy={star.y} r={star.r} fill="white" opacity={star.opacity} />
+        }
+      })}
     </>
   );
 });
@@ -340,7 +383,7 @@ export default function OrbitScreen() {
   const activeSystemRef = useRef("General");
   const [universeTasks, setUniverseTasks] = useState<{ [key: string]: Task[] }>({});
   const [isUniverseView, setIsUniverseView] = useState(false);
-  const zoomAnim = useRef(new Animated.Value(1)).current;  
+  const zoomAnim = useRef(new Animated.Value(1)).current;
   const universeOpacity = useRef(new Animated.Value(0)).current;
   const [archivedCount, setArchivedCount] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
@@ -355,13 +398,114 @@ export default function OrbitScreen() {
   const [renamePreviewText, setRenamePreviewText] = useState("");
   const systemAngleAnims = useRef<{ [key: string]: Animated.Value }>({});
   const orbitLoop = useRef(new Animated.Value(0)).current;
+
+  
+  const [activeTheme, setActiveTheme] = useState('default');
+  const [activeCosmetics, setActiveCosmetics] = useState<string[]>([]);
+  const [ownedItems, setOwnedItems] = useState<string[]>([]);
+  const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
+
+  
+  useEffect(() => {
+    if (!db) return;
+    refreshCustomization();
+  }, [db]);
+
+  const refreshCustomization = async () => {
+    if (!db) return;
+    try {
+      const themeRes: any = await db.getFirstAsync("SELECT value FROM player_stats WHERE key = 'active_theme'");
+      if (themeRes) {
+        setActiveTheme(themeRes.value);
+      }
+
+      const cosmeticsRes: any = await db.getFirstAsync("SELECT value FROM player_stats WHERE key = 'active_cosmetics'");
+      if (cosmeticsRes) {
+        try {
+          const parsed = JSON.parse(cosmeticsRes.value);
+          if (Array.isArray(parsed)) setActiveCosmetics(parsed);
+        } catch (e) { }
+      }
+
+      const inv = await db.getAllAsync('SELECT item_id FROM inventory');
+      const invIds = inv.map((i: any) => i.item_id);
+      setOwnedItems(invIds);
+    } catch (e) { console.log(e); }
+  }
+
+  const handleEquipItem = async (itemId: string) => {
+    if (!db) return;
+    if (itemId.startsWith('theme_') || itemId === 'default') {
+      setActiveTheme(itemId);
+      await db.runAsync("INSERT OR REPLACE INTO player_stats (key, value) VALUES ('active_theme', ?)", [itemId]);
+      triggerHaptic('success');
+    } else {
+      
+      setActiveCosmetics(prev => {
+        const newState = prev.includes(itemId) ? prev.filter(i => i !== itemId) : [...prev, itemId];
+        db.runAsync("INSERT OR REPLACE INTO player_stats (key, value) VALUES ('active_cosmetics', ?)", [JSON.stringify(newState)]);
+        triggerHaptic('success');
+        return newState;
+      });
+    }
+  }
+
+  
+  const getCategoryPalette = (cat: string) => {
+    if (activeTheme === 'theme_neon') {
+      const neonPalettes: { [key: string]: string[] } = {
+        "Work": ["#ff00ff", "#bc13fe"], 
+        "Personal": ["#00ffff", "#0abde3"], 
+        "Health": ["#0be881", "#05c46b"], 
+        "Ideas": ["#ffdd59", "#ffc048"], 
+        "General": ["#d1ccc0", "#808e9b"]
+      };
+      if (neonPalettes[cat]) return neonPalettes[cat];
+      return ["#ff00ff", "#bc13fe"];
+    }
+
+    if (activeTheme === 'theme_gold') {
+      return ["#ffd700", "#d4af37"];
+    }
+
+    if (activeTheme === 'theme_void') {
+      const voidPalettes: { [key: string]: string[] } = {
+        "Work": ["#34495e", "#2c3e50"],
+        "Personal": ["#9b59b6", "#8e44ad"],
+        "Health": ["#b2bec3", "#636e72"],
+        "Ideas": ["#95a5a6", "#7f8fa6"],
+        "General": ["#485460", "#1e272e"]
+      };
+      if (voidPalettes[cat]) return voidPalettes[cat];
+      return ["#596275", "#57606f"];
+    }
+
+    
+    const predefined: { [key: string]: string[] } = {
+      "Work": ["#ff4757", "#c0392b"],
+      "Personal": ["#f1c40f", "#f39c12"],
+      "Health": ["#ffffff", "#dfe6e9"],
+      "Ideas": ["#ffa502", "#e67e22"],
+      "General": ["#f7f1e3", "#d1ccc0"]
+    };
+    if (predefined[cat]) return predefined[cat];
+
+    
+    let hash = 0;
+    for (let i = 0; i < cat.length; i++) hash = cat.charCodeAt(i) + ((hash << 5) - hash);
+    const hues = [0, 30, 45, 60];
+    const hue = hues[Math.abs(hash) % hues.length];
+    const color = `hsl(${hue}, 90%, 60%)`;
+    return [color, color];
+  }
+
   useEffect(() => {
     Animated.loop(
       Animated.timing(orbitLoop, {
         toValue: 1,
         duration: 120000,
         easing: Easing.linear,
-        useNativeDriver: false  
+        useNativeDriver: false
       })
     ).start();
   }, []);
@@ -377,6 +521,8 @@ export default function OrbitScreen() {
       refreshData(db, "General");
     }
   }, [system]);
+
+
   useEffect(() => {
     async function setup() {
       try {
@@ -400,6 +546,7 @@ export default function OrbitScreen() {
   title TEXT,
   is_completed INTEGER DEFAULT 0
 );
+          CREATE TABLE IF NOT EXISTS player_stats (key TEXT PRIMARY KEY, value INTEGER);
 `);
         const countRes: any = await database.getFirstAsync('SELECT COUNT(*) as c FROM categories');
         if (countRes?.c === 0) {
@@ -407,6 +554,7 @@ export default function OrbitScreen() {
                 INSERT INTO categories(name) VALUES('General'), ('Work'), ('Personal'), ('Health'), ('Ideas');
 `);
         }
+
         refreshData(database, activeSystemRef.current);
       } catch (e) {
         console.log(e);
@@ -472,6 +620,7 @@ export default function OrbitScreen() {
       setSubTasks(subTasksResult);
       setCategoriesList(catsResult.map((c) => c.name));
       setArchivedCount(archiveResult?.count || 0);
+
     }
   }, [db, activeSystem]);
   useFocusEffect(
@@ -530,6 +679,24 @@ export default function OrbitScreen() {
       }
     });
   };
+
+  const updateCredits = async (amount: number) => {
+    if (!db) return;
+    try {
+      const res: any = await db.getFirstAsync("SELECT value FROM player_stats WHERE key = 'dark_matter'");
+      let current = 0;
+      if (res) {
+        current = res.value;
+      } else {
+        await db.runAsync("INSERT INTO player_stats (key, value) VALUES ('dark_matter', 0)");
+      }
+      await db.runAsync("UPDATE player_stats SET value = ? WHERE key = 'dark_matter'", [current + amount]);
+      
+    } catch (e) {
+      console.log("Error updating credits:", e);
+    }
+  }
+
   const addSubTask = async () => {
     if (!newSubTaskText || !selectedTask || !db) return;
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -547,6 +714,7 @@ export default function OrbitScreen() {
       setTimeout(async () => {
         triggerHaptic('medium');
         await db.runAsync('UPDATE subtasks SET is_completed = 1 WHERE id = ?', [subId]);
+        await updateCredits(1); 
         if (selectedTask) {
           setImpactState({ id: selectedTask.id, time: Date.now() });
           setTimeout(() => setImpactState(null), 300);
@@ -563,11 +731,16 @@ export default function OrbitScreen() {
   const completeMissionAction = (task: any) => {
     setSelectedTask(null);
     const catColor = getCategoryPalette(task.category || "General")[0];
+
+    
+    const reward = task.type === 'satellite' ? 2 : 5;
+
     setActiveCutscene({
       type: 'destroy',
       color: catColor,
       onFinish: () => {
         deleteTaskCascade(task.id, true);
+        updateCredits(reward);
         setActiveCutscene(null);
       }
     });
@@ -586,7 +759,19 @@ export default function OrbitScreen() {
     setIsControlsMinimized(!isControlsMinimized);
   }
   const renderSolarSystem = () => {
-    return tasks.map((task, index) => {
+    
+    
+    const sortedTasks = [...tasks].sort((a, b) => {
+      const timeRemainingA = a.deadline - globalTime;
+      const timeRemainingB = b.deadline - globalTime;
+      
+      
+      
+      
+      return timeRemainingB - timeRemainingA;
+    });
+
+    return sortedTasks.map((task, index) => {
       const timeRemaining = task.deadline - globalTime;
       const hoursRemaining = Math.max(0, timeRemaining / (1000 * 60 * 60));
       let orbitRadius = SUN_RADIUS + 25 + (hoursRemaining * 6);
@@ -725,6 +910,8 @@ export default function OrbitScreen() {
             })
           }
           <G transform={`translate(${planetX}, ${planetY}) scale(${scale})`} onPress={() => { triggerHaptic('light'); setSelectedTask(task); }}>
+            {}
+            <Circle r={30} fill="transparent" />
             {task.type === 'comet' && !isDying ? (
               <>
                 <Path
@@ -754,7 +941,7 @@ export default function OrbitScreen() {
           </G>
           {
             !isDying && (
-              <SvgText onPress={() => setSelectedTask(task)} x={planetX + 12} y={planetY + 4} fill="#aaa" fontSize="10" fontWeight="bold" opacity={0.8 * opacity}>
+              <SvgText onPress={() => { triggerHaptic('light'); setSelectedTask(task); }} x={planetX + 12} y={planetY + 4} fill="#aaa" fontSize="10" fontWeight="bold" opacity={0.8 * opacity}>
                 {task.title.length > 8 ? task.title.substring(0, 8) + ".." : task.title}
               </SvgText>
             )
@@ -855,7 +1042,7 @@ export default function OrbitScreen() {
         toValue: toUniverse ? 0 : 1,
         duration: 800,
         easing: Easing.inOut(Easing.exp),
-        useNativeDriver: false  
+        useNativeDriver: false
       }),
       Animated.timing(universeOpacity, {
         toValue: toUniverse ? 1 : 0,
@@ -864,6 +1051,10 @@ export default function OrbitScreen() {
       })
     ]).start();
   };
+
+
+
+
   const selectSystemFromUniverse = (cat: string) => {
     setPreviewCategory(cat);
     setIsPreviewOpen(true);
@@ -882,7 +1073,7 @@ export default function OrbitScreen() {
     setActiveSystem(previewCategory);
     activeSystemRef.current = previewCategory;
     refreshData(db, previewCategory);
-    toggleUniverseMode();  
+    toggleUniverseMode();
   };
   const closePreview = () => {
     Animated.timing(previewFadeAnim, {
@@ -955,8 +1146,8 @@ export default function OrbitScreen() {
     } catch (e) { console.log(e); }
   }
   const handleUpdateCategory = async () => {
-    if (!db || !editCategoryName) return;  
-    const target = activeSystem;  
+    if (!db || !editCategoryName) return;
+    const target = activeSystem;
     try {
       await db.runAsync('UPDATE categories SET name = ? WHERE name = ?', [editCategoryName, target]);
       await db.runAsync('UPDATE tasks SET category = ? WHERE category = ?', [editCategoryName, target]);
@@ -1092,7 +1283,7 @@ export default function OrbitScreen() {
               const rawT = Math.min(1, Math.max(0, elapsed / duration));
               scale = 1 - rawT;
               opacity = 1 - rawT;
-              currentRadius = (width * 0.40) * (1 - Math.pow(rawT, 0.5));  
+              currentRadius = (width * 0.40) * (1 - Math.pow(rawT, 0.5));
               currentRadius = (width * 0.40) * (1 - rawT);
             }
             return (
@@ -1182,6 +1373,8 @@ export default function OrbitScreen() {
       </Animated.View>
     )
   }
+
+
   const systemScale = zoomAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
   const systemOpacity = zoomAnim;
   return (
@@ -1198,7 +1391,12 @@ export default function OrbitScreen() {
         style={[StyleSheet.absoluteFill, { transform: [{ scale: systemScale }], opacity: systemOpacity }]}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>ORBIT</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <Text style={styles.title}>ORBIT</Text>
+            <TouchableOpacity onPress={() => { triggerHaptic('medium'); setIsCustomizationOpen(true); }} style={{ borderWidth: 1, borderColor: '#333', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 10, backgroundColor: '#111' }}>
+              <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold', letterSpacing: 1 }}>THEMES</Text>
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity onPress={toggleUniverseMode}>
             <Text style={styles.subtitle}>{activeSystem.toUpperCase()} SYSTEM ▾</Text>
           </TouchableOpacity>
@@ -1213,9 +1411,30 @@ export default function OrbitScreen() {
                 </RadialGradient>
               </Defs>
               <StarField />
+
+              {}
+              {activeCosmetics.includes('upgrade_sensor') && (
+                <G transform={`translate(${CENTER_X}, ${CENTER_Y})`}>
+                  <Circle r={width * 0.3} stroke={getCategoryPalette(activeSystem)[0]} strokeWidth="1" strokeOpacity="0.3" strokeDasharray="10, 10" />
+                  <Circle r={width * 0.2} stroke={getCategoryPalette(activeSystem)[0]} strokeWidth="1" strokeOpacity="0.2" strokeDasharray="5, 5" />
+                  <Line x1={-width / 2} y1={0} x2={width / 2} y2={0} stroke={getCategoryPalette(activeSystem)[0]} strokeOpacity="0.1" />
+                  <Line x1={0} y1={-height / 2} x2={0} y2={height / 2} stroke={getCategoryPalette(activeSystem)[0]} strokeOpacity="0.1" />
+                </G>
+              )}
+
+              {}
+              {activeCosmetics.includes('cosmetic_trails') && (
+                <StarField trailMode={true} />
+              )}
+
               <G transform={`translate(${CENTER_X}, ${CENTER_Y}) scale(${sunScale})`}>
                 <Circle cx={0} cy={0} r={SUN_RADIUS} fill="url(#sunGrad)" onPress={toggleUniverseMode} />
                 <Circle cx={0} cy={0} r={SUN_RADIUS + 15} fill={getCategoryPalette(activeSystem)[0]} opacity={0.15} />
+
+                {}
+                {activeCosmetics.includes('cosmetic_shield') && (
+                  <Circle cx={0} cy={0} r={SUN_RADIUS + 25} stroke="#0be881" strokeWidth="2" strokeOpacity="0.6" strokeDasharray="2,5" fill="none" />
+                )}
               </G>
               {renderSolarSystem()}
             </Svg>
@@ -1351,7 +1570,7 @@ export default function OrbitScreen() {
       </Modal>
       { }
       <Modal transparent visible={isEditing || isAdding} animationType="slide" onRequestClose={() => { setIsEditing(false); setIsAdding(false); }}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+        <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalLabel}>{isAdding ? "INITIALIZE NEW SYSTEM" : "SYSTEM CONFIGURATION"}</Text>
             <TextInput
@@ -1368,16 +1587,16 @@ export default function OrbitScreen() {
               </TouchableOpacity>
               {isAdding ? (
                 <TouchableOpacity onPress={handleCreateCategory} style={styles.saveBtn}>
-                  <Text style={[styles.btnText, { color: '#0c0c14' }]}>CREATE</Text>
+                  <Text style={[styles.btnText, { color: '#000000' }]}>CREATE</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity onPress={handleUpdateCategory} style={styles.saveBtn}>
-                  <Text style={[styles.btnText, { color: '#0c0c14' }]}>RENAME</Text>
+                  <Text style={[styles.btnText, { color: '#000000' }]}>RENAME</Text>
                 </TouchableOpacity>
               )}
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
       <Modal transparent visible={isPreviewOpen} animationType="none" onRequestClose={closePreview}>
         <View style={styles.modalOverlay}>
@@ -1386,7 +1605,7 @@ export default function OrbitScreen() {
               {isRenamingPreview ? (
                 <View style={{ flexDirection: 'row', width: '100%', alignItems: 'center', gap: 10 }}>
                   <TextInput
-                    style={{ flex: 1, backgroundColor: '#0c0c14', color: 'white', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#485460' }}
+                    style={{ flex: 1, backgroundColor: '#000000', color: 'white', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#333333' }}
                     value={renamePreviewText}
                     onChangeText={setRenamePreviewText}
                     placeholder="System Name"
@@ -1396,7 +1615,7 @@ export default function OrbitScreen() {
                   <TouchableOpacity onPress={handleSavePreviewRename} style={{ backgroundColor: 'white', padding: 10, borderRadius: 8 }}>
                     <Text style={{ color: 'black', fontWeight: 'bold', fontSize: 10 }}>SAVE</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setIsRenamingPreview(false)} style={{ backgroundColor: '#2a2d3a', padding: 10, borderRadius: 8 }}>
+                  <TouchableOpacity onPress={() => setIsRenamingPreview(false)} style={{ backgroundColor: '#111111', padding: 10, borderRadius: 8 }}>
                     <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 10 }}>X</Text>
                   </TouchableOpacity>
                 </View>
@@ -1496,17 +1715,91 @@ export default function OrbitScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal transparent visible={isCustomizationOpen} animationType="slide" onRequestClose={() => setIsCustomizationOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { height: 500 }]}>
+            <Text style={styles.modalTitle}>VISUAL INTERFACE</Text>
+
+            <FlatList
+              data={[
+                { id: 'header_themes', name: 'INSTALLED THEMES', type: 'header' },
+                { id: 'default', name: 'Standard Orbit', type: 'item' },
+                { id: 'theme_neon', name: 'Neon Cyberpunk', type: 'item' },
+                { id: 'theme_gold', name: 'Golden Age', type: 'item' },
+                { id: 'theme_void', name: 'Void Darkness', type: 'item' },
+                { id: 'header_upgrades', name: 'SYSTEM UPGRADES', type: 'header' },
+                { id: 'upgrade_sensor', name: 'Sensor Array Mk II', type: 'item' },
+                { id: 'cosmetic_trails', name: 'Stardust Trails', type: 'item' },
+                { id: 'cosmetic_shield', name: 'Planetary Shield', type: 'item' }
+              ]}
+              keyExtractor={item => item.id}
+              renderItem={({ item }) => {
+                if (item.type === 'header') {
+                  return <Text style={[styles.controlLabel, { marginTop: 20, marginBottom: 10 }]}>{item.name}</Text>;
+                }
+
+                const isOwned = item.id === 'default' || ownedItems.includes(item.id);
+                const isActive = activeTheme === item.id || activeCosmetics.includes(item.id);
+
+                if (!isOwned) return null;
+
+                return (
+                  <TouchableOpacity
+                    onPress={() => handleEquipItem(item.id)}
+                    style={{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      paddingVertical: 15,
+                      paddingHorizontal: 15,
+                      backgroundColor: isActive ? '#111' : 'transparent',
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: isActive ? '#0be881' : '#333',
+                      marginBottom: 10
+                    }}
+                  >
+                    <Text style={{ color: 'white', fontWeight: 'bold' }}>{item.name}</Text>
+                    <View style={{
+                      backgroundColor: isActive ? '#0be881' : '#333',
+                      paddingVertical: 5,
+                      paddingHorizontal: 10,
+                      borderRadius: 6
+                    }}>
+                      <Text style={{
+                        color: isActive ? '#000' : '#888',
+                        fontSize: 10,
+                        fontWeight: 'bold'
+                      }}>
+                        {isActive ? "ACTIVE" : "EQUIP"}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )
+              }}
+            />
+
+            <TouchableOpacity
+              style={[styles.cancelLaunchBtn, { marginTop: 20 }]}
+              onPress={() => setIsCustomizationOpen(false)}
+            >
+              <Text style={styles.closeText}>CLOSE</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0c0c14' },
+  container: { flex: 1, backgroundColor: '#000000' },
   header: { paddingTop: 60, paddingHorizontal: 20, alignItems: 'center' },
   title: { color: 'white', fontSize: 32, fontWeight: '900', letterSpacing: 5 },
   subtitle: { color: '#808e9b', fontSize: 14, letterSpacing: 1 },
   orbitContainer: { flex: 1 },
   controls: {
-    backgroundColor: '#1e2029',
+    backgroundColor: '#000000',
     padding: 20,
     paddingBottom: 30,
     borderTopLeftRadius: 30,
@@ -1520,44 +1813,44 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   handleBar: { alignItems: 'center', paddingBottom: 15, marginBottom: 5 },
-  handleIcon: { width: 40, height: 4, backgroundColor: '#485460', borderRadius: 2, marginBottom: 5 },
+  handleIcon: { width: 40, height: 4, backgroundColor: '#333333', borderRadius: 2, marginBottom: 5 },
   handleText: { color: '#808e9b', fontSize: 10, fontWeight: 'bold', letterSpacing: 1 },
   controlHeader: { marginBottom: 10 },
   controlLabel: { color: '#808e9b', fontSize: 12, fontWeight: 'bold', letterSpacing: 1 },
   dateRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  dateBtn: { flex: 1, backgroundColor: '#2a2d3a', padding: 12, borderRadius: 10, alignItems: 'center', marginHorizontal: 5, borderWidth: 1, borderColor: '#485460' },
+  dateBtn: { flex: 1, backgroundColor: '#111111', padding: 12, borderRadius: 10, alignItems: 'center', marginHorizontal: 5, borderWidth: 1, borderColor: '#333333' },
   dateBtnText: { color: '#0be881', fontWeight: 'bold', letterSpacing: 1 },
   typeRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: 10 },
-  typeBtn: { width: 80, height: 40, borderRadius: 12, backgroundColor: '#2a2d3a', justifyContent: 'center', alignItems: 'center', marginHorizontal: 5, borderWidth: 1, borderColor: '#485460' },
+  typeBtn: { width: 80, height: 40, borderRadius: 12, backgroundColor: '#111111', justifyContent: 'center', alignItems: 'center', marginHorizontal: 5, borderWidth: 1, borderColor: '#333333' },
   typeBtnActive: { backgroundColor: '#3742fa', borderColor: '#3742fa' },
   typeText: { fontSize: 12, fontWeight: 'bold', color: 'white' },
-  catBtn: { paddingVertical: 10, paddingHorizontal: 15, borderRadius: 12, backgroundColor: '#2a2d3a', borderWidth: 1, borderColor: '#485460', margin: 5 },
+  catBtn: { paddingVertical: 10, paddingHorizontal: 15, borderRadius: 12, backgroundColor: '#111111', borderWidth: 1, borderColor: '#333333', margin: 5 },
   inputRow: { flexDirection: 'row' },
-  input: { flex: 1, backgroundColor: '#2a2d3a', borderRadius: 15, color: 'white', paddingHorizontal: 20, height: 55, marginRight: 10, borderWidth: 1, borderColor: '#485460' },
+  input: { flex: 1, backgroundColor: '#111111', borderRadius: 15, color: 'white', paddingHorizontal: 20, height: 55, marginRight: 10, borderWidth: 1, borderColor: '#333333' },
   launchBtn: { backgroundColor: '#0be881', borderRadius: 15, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
   launchText: { color: '#1e272e', fontWeight: '900', letterSpacing: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
-  modalBox: { width: '90%', backgroundColor: '#1e2029', borderRadius: 25, padding: 25, shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 20 },
+  modalBox: { width: '90%', backgroundColor: '#000000', borderRadius: 25, padding: 25, shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 20 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   modalTitle: { color: 'white', fontSize: 24, fontWeight: 'bold', flex: 1 },
   closeText: { color: '#808e9b', fontSize: 14, fontWeight: 'bold', padding: 5 },
-  modalBadge: { alignSelf: 'flex-start', backgroundColor: '#2a2d3a', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginTop: 5, marginBottom: 10 },
+  modalBadge: { alignSelf: 'flex-start', backgroundColor: '#111111', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginTop: 5, marginBottom: 10 },
   modalBadgeText: { color: '#d2dae2', fontSize: 12, fontWeight: 'bold' },
   progressText: { color: '#0984e3', fontSize: 12, fontWeight: 'bold', marginTop: 5 },
-  subtaskList: { marginBottom: 20, backgroundColor: '#15171e', padding: 15, borderRadius: 15 },
+  subtaskList: { marginBottom: 20, backgroundColor: '#000000', padding: 15, borderRadius: 15 },
   subtaskHeader: { color: '#808e9b', fontSize: 10, fontWeight: 'bold', marginBottom: 10, letterSpacing: 1 },
   subtaskItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  checkbox: { width: 18, height: 18, borderRadius: 6, borderWidth: 2, borderColor: '#485460', marginRight: 10 },
+  checkbox: { width: 18, height: 18, borderRadius: 6, borderWidth: 2, borderColor: '#333333', marginRight: 10 },
   checkboxChecked: { backgroundColor: '#0be881', borderColor: '#0be881' },
   subtaskText: { color: '#d2dae2', fontSize: 14 },
   subtaskTextDone: { color: '#555', textDecorationLine: 'line-through' },
   emptySub: { color: '#444', fontStyle: 'italic', marginBottom: 10 },
-  subtaskInputRow: { flexDirection: 'row', alignItems: 'center', marginTop: 5, borderTopWidth: 1, borderTopColor: '#2a2d3a', paddingTop: 10 },
+  subtaskInputRow: { flexDirection: 'row', alignItems: 'center', marginTop: 5, borderTopWidth: 1, borderTopColor: '#111111', paddingTop: 10 },
   subtaskInput: { flex: 1, color: 'white', fontSize: 14 },
   addSubText: { color: '#0be881', fontWeight: 'bold', paddingLeft: 10 },
   completeBtn: { backgroundColor: '#0be881', width: '100%', paddingVertical: 18, borderRadius: 15, alignItems: 'center' },
   completeText: { color: '#1e272e', fontWeight: '900', fontSize: 16, letterSpacing: 1 },
-  calContainer: { width: '85%', backgroundColor: '#1e2029', borderRadius: 25, padding: 20, alignItems: 'center' },
+  calContainer: { width: '85%', backgroundColor: '#000000', borderRadius: 25, padding: 20, alignItems: 'center' },
   calHeader: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 20, paddingHorizontal: 10 },
   calTitle: { color: 'white', fontSize: 18, fontWeight: 'bold' },
   calNav: { color: '#0be881', fontSize: 20, fontWeight: 'bold' },
@@ -1565,15 +1858,15 @@ const styles = StyleSheet.create({
   calDay: { width: '14.28%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center', marginVertical: 2 },
   calDayEmpty: { width: '14.28%', aspectRatio: 1 },
   calDayText: { color: '#808e9b', fontWeight: 'bold' },
-  calDayToday: { backgroundColor: '#2a2d3a', borderRadius: 10, borderWidth: 1, borderColor: '#0be881' },
+  calDayToday: { backgroundColor: '#111111', borderRadius: 10, borderWidth: 1, borderColor: '#0be881' },
   calDayTextToday: { color: 'white' },
   calClose: { marginTop: 20 },
   calCloseText: { color: '#ff4757', fontWeight: 'bold' },
   timeBtn: { width: '16.66%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center', marginVertical: 5 },
   timeBtnText: { color: '#d2dae2', fontSize: 12, fontWeight: 'bold' },
   customRow: { marginBottom: 15 },
-  customInput: { backgroundColor: '#2a2d3a', borderRadius: 12, color: '#ffa502', paddingHorizontal: 15, height: 45, borderWidth: 1, borderColor: '#ffa502' },
-  recBtn: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 5, backgroundColor: '#2a2d3a', borderWidth: 1, borderColor: '#485460', marginHorizontal: 5 },
+  customInput: { backgroundColor: '#111111', borderRadius: 12, color: '#ffa502', paddingHorizontal: 15, height: 45, borderWidth: 1, borderColor: '#ffa502' },
+  recBtn: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 5, backgroundColor: '#111111', borderWidth: 1, borderColor: '#333333', marginHorizontal: 5 },
   recBtnActive: { backgroundColor: '#3742fa', borderColor: '#3742fa' },
   recBtnText: { color: 'white', fontSize: 10, fontWeight: 'bold' },
   headerOverlay: {
@@ -1583,26 +1876,30 @@ const styles = StyleSheet.create({
   headerSub: { color: '#808e9b', fontSize: 10, letterSpacing: 1, marginTop: 5 },
   addSystemBtn: { marginTop: 15, backgroundColor: 'rgba(255,255,255,0.1)', paddingVertical: 8, paddingHorizontal: 15, borderRadius: 20, borderWidth: 1, borderColor: '#fff', pointerEvents: 'auto' },
   addSystemText: { color: 'white', fontSize: 10, fontWeight: 'bold', letterSpacing: 1 },
-  systemWindow: { width: width * 0.9, height: 480, backgroundColor: '#1e2029', borderRadius: 30, borderWidth: 1, borderColor: '#2a2d3a', alignItems: 'center', padding: 20, overflow: 'hidden' },
+  systemWindow: { width: width * 0.9, height: 480, backgroundColor: '#000000', borderRadius: 30, borderWidth: 1, borderColor: '#111111', alignItems: 'center', padding: 20, overflow: 'hidden' },
   windowHeader: { flexDirection: 'row', width: '100%', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   windowTitle: { fontSize: 18, fontWeight: '900', letterSpacing: 2 },
-  editBtn: { backgroundColor: '#2a2d3a', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: '#485460' },
+  editBtn: { backgroundColor: '#111111', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: '#333333' },
   editBtnText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
   delBtn: { backgroundColor: 'rgba(255,71,87,0.1)', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ff4757' },
   delBtnText: { color: '#ff4757', fontSize: 10, fontWeight: 'bold' },
   svgWrapper: { width: 300, height: 300, alignItems: 'center', justifyContent: 'center' },
   tapHint: { color: '#555', fontSize: 10, fontWeight: 'bold', letterSpacing: 2, marginTop: 20 },
   closeBtnBottom: { marginTop: 20, padding: 10 },
-  modalContent: { width: '80%', backgroundColor: '#1e2029', padding: 25, borderRadius: 20, borderWidth: 1, borderColor: '#2a2d3a' },
+  modalContent: { width: '80%', backgroundColor: '#000000', padding: 25, borderRadius: 20, borderWidth: 1, borderColor: '#111111' },
   modalLabel: { color: '#808e9b', fontSize: 10, fontWeight: 'bold', marginBottom: 10, letterSpacing: 1, textAlign: 'center' },
   modalButtons: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
   cancelBtn: { padding: 15, borderRadius: 10, flex: 1, alignItems: 'center' },
   saveBtn: { backgroundColor: 'white', padding: 15, borderRadius: 10, flex: 1, alignItems: 'center' },
-  modalInput: { backgroundColor: '#0c0c14', color: 'white', padding: 15, borderRadius: 10, fontSize: 18, fontWeight: 'bold', marginBottom: 20, borderWidth: 1, textAlign: 'center', width: '100%' },
+  modalInput: { backgroundColor: '#000000', color: 'white', padding: 15, borderRadius: 10, fontSize: 18, fontWeight: 'bold', marginBottom: 20, borderWidth: 1, textAlign: 'center', width: '100%' },
   btnText: { color: '#808e9b', fontWeight: 'bold', fontSize: 12 },
-  cancelLaunchBtn: { flex: 1, backgroundColor: '#2a2d3a', paddingVertical: 18, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#485460' },
+  cancelLaunchBtn: { flex: 1, backgroundColor: '#111111', paddingVertical: 18, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#333333' },
   confirmLaunchBtn: { flex: 2, backgroundColor: '#0be881', paddingVertical: 18, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   cutsceneContainer: { position: 'absolute', top: 0, left: 0, width: width, height: height, backgroundColor: '#000', zIndex: 100, alignItems: 'center', justifyContent: 'center' },
   cutsceneTitle: { color: 'white', fontSize: 32, fontWeight: '900', letterSpacing: 3, marginBottom: 50, textAlign: 'center' },
   cutsceneVisual: { width: 200, height: 200, alignItems: 'center', justifyContent: 'center' }
 });
+
+
+
+
