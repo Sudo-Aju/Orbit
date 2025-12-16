@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as SQLite from 'expo-sqlite';
@@ -58,10 +59,11 @@ const CutsceneOverlay = ({ type, taskType, color, onFinish }: { type: 'launch' |
       ]),
       Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true })
     ]).start(() => onFinish());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const spin = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   const reverseSpin = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['360deg', '0deg'] });
-  const flameFlicker = shakeAnim.interpolate({ inputRange: [-2, 2], outputRange: [0.8, 1.2] });
+
   const rocketTranslate = objectAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [height * 0.5, -height]
@@ -76,7 +78,7 @@ const CutsceneOverlay = ({ type, taskType, color, onFinish }: { type: 'launch' |
     inputRange: [0, 1],
     outputRange: [height * 0.3, -height * 0.3]
   });
-  const tailStretch = objectAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.5, 1] });
+
   const explosionScale = objectAnim.interpolate({
     inputRange: [0, 0.5, 1],
     outputRange: [0.1, 3, 0]
@@ -198,20 +200,20 @@ const StarField = React.memo(({ trailMode }: { trailMode?: boolean }) => {
 
   useEffect(() => {
     if (trailMode) {
-      
-      
+
+
       anim.setValue(0);
       Animated.timing(anim, {
         toValue: 100000,
-        duration: 2000000, 
+        duration: 2000000,
         easing: Easing.linear,
         useNativeDriver: false
       }).start();
     }
-  }, [trailMode]);
+  }, [trailMode, anim]);
 
   const stars = useMemo(() => {
-    const count = trailMode ? 30 : 120; 
+    const count = trailMode ? 30 : 120;
     return Array.from({ length: count }).map((_, i) => ({
       key: i,
       x: Math.random() * width,
@@ -227,16 +229,16 @@ const StarField = React.memo(({ trailMode }: { trailMode?: boolean }) => {
     <>
       {stars.map((star) => {
         if (trailMode) {
-          
-          
-          
-          
 
-          
-          
-          
 
-          
+
+
+
+
+
+
+
+
           const speed = 5;
           const moveX = Animated.multiply(anim, star.speedMulti * speed);
           const moveY = Animated.multiply(anim, star.speedMulti * speed);
@@ -244,7 +246,7 @@ const StarField = React.memo(({ trailMode }: { trailMode?: boolean }) => {
           const xNode = Animated.modulo(Animated.add(star.x, moveX), width);
           const yNode = Animated.modulo(Animated.add(star.y, moveY), height);
 
-          
+
           const x2Node = Animated.add(xNode, -star.length);
           const y2Node = Animated.add(yNode, -star.length);
 
@@ -267,10 +269,11 @@ const StarField = React.memo(({ trailMode }: { trailMode?: boolean }) => {
     </>
   );
 });
+StarField.displayName = 'StarField';
 const SciFiCalendar = ({ onSelectDate, onClose }: { onSelectDate: (date: Date) => void, onClose: () => void }) => {
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
-  const [currentYear, setCurrentYear] = useState(today.getFullYear());
+  const [currentYear] = useState(today.getFullYear());
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const firstDay = new Date(currentYear, currentMonth, 1).getDay();
   const generateDays = () => {
@@ -348,6 +351,7 @@ interface Task {
   type: 'planet' | 'comet' | 'satellite';
   category: string;
   recurrence: 'none' | 'monthly' | 'yearly';
+  recurrence_days?: string;
   status: 'active' | 'archived';
 }
 const AnimatedG = Animated.createAnimatedComponent(G);
@@ -361,11 +365,8 @@ export default function OrbitScreen() {
   const [newTaskText, setNewTaskText] = useState("");
   const [taskType, setTaskType] = useState<'planet' | 'comet' | 'satellite'>('planet');
   const [recurrence, setRecurrence] = useState<'none' | 'monthly' | 'yearly'>('none');
-  const [selectedCategory, setSelectedCategory] = useState("General");
-  const [selectedDuration, setSelectedDuration] = useState(3600000);
-  const [isCustomMode, setIsCustomMode] = useState(false);
-  const [isCalendarMode, setIsCalendarMode] = useState(false);
-  const [customHours, setCustomHours] = useState("");
+  const [selectedDays, setSelectedDays] = useState<number[]>([]);
+
   const [targetDate, setTargetDate] = useState(new Date(Date.now() + 3600000));
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isTimePickerOpen, setIsTimePickerOpen] = useState(false);
@@ -399,205 +400,13 @@ export default function OrbitScreen() {
   const systemAngleAnims = useRef<{ [key: string]: Animated.Value }>({});
   const orbitLoop = useRef(new Animated.Value(0)).current;
 
-  
+
   const [activeTheme, setActiveTheme] = useState('default');
   const [activeCosmetics, setActiveCosmetics] = useState<string[]>([]);
   const [ownedItems, setOwnedItems] = useState<string[]>([]);
+  const [credits, setCredits] = useState(0);
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
 
-  
-  useEffect(() => {
-    if (!db) return;
-    refreshCustomization();
-  }, [db]);
-
-  const refreshCustomization = async () => {
-    if (!db) return;
-    try {
-      const themeRes: any = await db.getFirstAsync("SELECT value FROM player_stats WHERE key = 'active_theme'");
-      if (themeRes) {
-        setActiveTheme(themeRes.value);
-      }
-
-      const cosmeticsRes: any = await db.getFirstAsync("SELECT value FROM player_stats WHERE key = 'active_cosmetics'");
-      if (cosmeticsRes) {
-        try {
-          const parsed = JSON.parse(cosmeticsRes.value);
-          if (Array.isArray(parsed)) setActiveCosmetics(parsed);
-        } catch (e) { }
-      }
-
-      const inv = await db.getAllAsync('SELECT item_id FROM inventory');
-      const invIds = inv.map((i: any) => i.item_id);
-      setOwnedItems(invIds);
-    } catch (e) { console.log(e); }
-  }
-
-  const handleEquipItem = async (itemId: string) => {
-    if (!db) return;
-    if (itemId.startsWith('theme_') || itemId === 'default') {
-      setActiveTheme(itemId);
-      await db.runAsync("INSERT OR REPLACE INTO player_stats (key, value) VALUES ('active_theme', ?)", [itemId]);
-      triggerHaptic('success');
-    } else {
-      
-      setActiveCosmetics(prev => {
-        const newState = prev.includes(itemId) ? prev.filter(i => i !== itemId) : [...prev, itemId];
-        db.runAsync("INSERT OR REPLACE INTO player_stats (key, value) VALUES ('active_cosmetics', ?)", [JSON.stringify(newState)]);
-        triggerHaptic('success');
-        return newState;
-      });
-    }
-  }
-
-  
-  const getCategoryPalette = (cat: string) => {
-    if (activeTheme === 'theme_neon') {
-      const neonPalettes: { [key: string]: string[] } = {
-        "Work": ["#ff00ff", "#bc13fe"], 
-        "Personal": ["#00ffff", "#0abde3"], 
-        "Health": ["#0be881", "#05c46b"], 
-        "Ideas": ["#ffdd59", "#ffc048"], 
-        "General": ["#d1ccc0", "#808e9b"]
-      };
-      if (neonPalettes[cat]) return neonPalettes[cat];
-      return ["#ff00ff", "#bc13fe"];
-    }
-
-    if (activeTheme === 'theme_gold') {
-      return ["#ffd700", "#d4af37"];
-    }
-
-    if (activeTheme === 'theme_void') {
-      const voidPalettes: { [key: string]: string[] } = {
-        "Work": ["#34495e", "#2c3e50"],
-        "Personal": ["#9b59b6", "#8e44ad"],
-        "Health": ["#b2bec3", "#636e72"],
-        "Ideas": ["#95a5a6", "#7f8fa6"],
-        "General": ["#485460", "#1e272e"]
-      };
-      if (voidPalettes[cat]) return voidPalettes[cat];
-      return ["#596275", "#57606f"];
-    }
-
-    
-    const predefined: { [key: string]: string[] } = {
-      "Work": ["#ff4757", "#c0392b"],
-      "Personal": ["#f1c40f", "#f39c12"],
-      "Health": ["#ffffff", "#dfe6e9"],
-      "Ideas": ["#ffa502", "#e67e22"],
-      "General": ["#f7f1e3", "#d1ccc0"]
-    };
-    if (predefined[cat]) return predefined[cat];
-
-    
-    let hash = 0;
-    for (let i = 0; i < cat.length; i++) hash = cat.charCodeAt(i) + ((hash << 5) - hash);
-    const hues = [0, 30, 45, 60];
-    const hue = hues[Math.abs(hash) % hues.length];
-    const color = `hsl(${hue}, 90%, 60%)`;
-    return [color, color];
-  }
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.timing(orbitLoop, {
-        toValue: 1,
-        duration: 120000,
-        easing: Easing.linear,
-        useNativeDriver: false
-      })
-    ).start();
-  }, []);
-  useEffect(() => {
-    if (system) {
-      activeSystemRef.current = system;
-      setActiveSystem(system);
-      setSelectedCategory(system);
-      refreshData(db, system);
-    } else {
-      activeSystemRef.current = "General";
-      setActiveSystem("General");
-      refreshData(db, "General");
-    }
-  }, [system]);
-
-
-  useEffect(() => {
-    async function setup() {
-      try {
-        const database = await SQLite.openDatabaseAsync('orbit_v28_unified.db');
-        setDb(database);
-        await database.execAsync(`
-          CREATE TABLE IF NOT EXISTS categories(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE);
-          CREATE TABLE IF NOT EXISTS tasks(
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  title TEXT,
-  deadline INTEGER,
-  created_at INTEGER,
-  type TEXT DEFAULT 'planet',
-  category TEXT DEFAULT 'General',
-  recurrence TEXT DEFAULT 'none',
-  status TEXT DEFAULT 'active'
-);
-          CREATE TABLE IF NOT EXISTS subtasks(
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  parent_id INTEGER,
-  title TEXT,
-  is_completed INTEGER DEFAULT 0
-);
-          CREATE TABLE IF NOT EXISTS player_stats (key TEXT PRIMARY KEY, value INTEGER);
-`);
-        const countRes: any = await database.getFirstAsync('SELECT COUNT(*) as c FROM categories');
-        if (countRes?.c === 0) {
-          await database.execAsync(`
-                INSERT INTO categories(name) VALUES('General'), ('Work'), ('Personal'), ('Health'), ('Ideas');
-`);
-        }
-
-        refreshData(database, activeSystemRef.current);
-      } catch (e) {
-        console.log(e);
-      }
-    }
-    setup();
-    startGameLoop();
-  }, []);
-  const requestRef = useRef<number | null>(null);
-  const startGameLoop = () => {
-    const animate = () => {
-      setGlobalTime(Date.now());
-      requestRef.current = requestAnimationFrame(animate);
-    };
-    requestRef.current = requestAnimationFrame(animate);
-  };
-  useEffect(() => {
-    return () => {
-      if (requestRef.current !== null) {
-        cancelAnimationFrame(requestRef.current);
-      }
-    };
-  }, []);
-  const panelHeight = isCustomMode ? 350 : 300;
-  const minimizedOffset = panelHeight - 55;
-  useEffect(() => {
-    Animated.spring(slideAnim, {
-      toValue: isControlsMinimized ? minimizedOffset : 0,
-      useNativeDriver: true,
-      friction: 8,
-      tension: 40
-    }).start();
-  }, [isControlsMinimized, isCustomMode]);
-  useEffect(() => {
-    if (tasks.length > 0 && db) {
-      const now = Date.now();
-      tasks.forEach(task => {
-        if (task.deadline <= now - 2000) {
-          deleteTaskCascade(task.id, false);
-        }
-      });
-    }
-  }, [globalTime]);
   const refreshData = React.useCallback(async (database = db, categoryFilter = activeSystem) => {
     if (database) {
       const tasksResult = await database.getAllAsync(
@@ -623,6 +432,215 @@ export default function OrbitScreen() {
 
     }
   }, [db, activeSystem]);
+
+
+  useEffect(() => {
+    if (!db) return;
+    const refreshCustomization = async () => {
+      if (!db) return;
+      try {
+        const themeRes: any = await db.getFirstAsync("SELECT value FROM player_stats WHERE key = 'active_theme'");
+        if (themeRes) {
+          setActiveTheme(themeRes.value);
+        }
+
+        const cosmeticsRes: any = await db.getFirstAsync("SELECT value FROM player_stats WHERE key = 'active_cosmetics'");
+        if (cosmeticsRes) {
+          try {
+            const parsed = JSON.parse(cosmeticsRes.value);
+            if (Array.isArray(parsed)) setActiveCosmetics(parsed);
+          } catch { }
+        }
+
+        const inv = await db.getAllAsync('SELECT item_id FROM inventory');
+        const invIds = inv.map((i: any) => i.item_id);
+        setOwnedItems(invIds);
+
+        const creditRes: any = await db.getFirstAsync("SELECT value FROM player_stats WHERE key = 'dark_matter'");
+        if (creditRes) setCredits(creditRes.value);
+        else {
+          await db.runAsync("INSERT INTO player_stats (key, value) VALUES ('dark_matter', 100)");
+          setCredits(100);
+        }
+      } catch (e) { console.log(e); }
+    }
+    refreshCustomization();
+  }, [db]);
+
+  const handleEquipItem = async (itemId: string) => {
+    if (!db) return;
+    if (itemId.startsWith('theme_') || itemId === 'default') {
+      setActiveTheme(itemId);
+      await db.runAsync("INSERT OR REPLACE INTO player_stats (key, value) VALUES ('active_theme', ?)", [itemId]);
+      triggerHaptic('success');
+    } else {
+
+      setActiveCosmetics(prev => {
+        const newState = prev.includes(itemId) ? prev.filter(i => i !== itemId) : [...prev, itemId];
+        db.runAsync("INSERT OR REPLACE INTO player_stats (key, value) VALUES ('active_cosmetics', ?)", [JSON.stringify(newState)]);
+        triggerHaptic('success');
+        return newState;
+      });
+    }
+  }
+
+
+  const getCategoryPalette = (cat: string) => {
+    if (activeTheme === 'theme_neon') {
+      const neonPalettes: { [key: string]: string[] } = {
+        "Work": ["#ff00ff", "#bc13fe"],
+        "Personal": ["#00ffff", "#0abde3"],
+        "Health": ["#0be881", "#05c46b"],
+        "Ideas": ["#ffdd59", "#ffc048"],
+        "General": ["#d1ccc0", "#808e9b"]
+      };
+      if (neonPalettes[cat]) return neonPalettes[cat];
+      return ["#ff00ff", "#bc13fe"];
+    }
+
+    if (activeTheme === 'theme_gold') {
+      return ["#ffd700", "#d4af37"];
+    }
+
+    if (activeTheme === 'theme_void') {
+      const voidPalettes: { [key: string]: string[] } = {
+        "Work": ["#34495e", "#2c3e50"],
+        "Personal": ["#9b59b6", "#8e44ad"],
+        "Health": ["#b2bec3", "#636e72"],
+        "Ideas": ["#95a5a6", "#7f8fa6"],
+        "General": ["#485460", "#1e272e"]
+      };
+      if (voidPalettes[cat]) return voidPalettes[cat];
+      return ["#596275", "#57606f"];
+    }
+
+
+    const predefined: { [key: string]: string[] } = {
+      "Work": ["#ff4757", "#c0392b"],
+      "Personal": ["#f1c40f", "#f39c12"],
+      "Health": ["#ffffff", "#dfe6e9"],
+      "Ideas": ["#ffa502", "#e67e22"],
+      "General": ["#f7f1e3", "#d1ccc0"]
+    };
+    if (predefined[cat]) return predefined[cat];
+
+
+    let hash = 0;
+    for (let i = 0; i < cat.length; i++) hash = cat.charCodeAt(i) + ((hash << 5) - hash);
+    const hues = [0, 30, 45, 60];
+    const hue = hues[Math.abs(hash) % hues.length];
+    const color = `hsl(${hue}, 90%, 60%)`;
+    return [color, color];
+  }
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(orbitLoop, {
+        toValue: 1,
+        duration: 120000,
+        easing: Easing.linear,
+        useNativeDriver: false
+      })
+    ).start();
+  }, [orbitLoop]);
+
+  useEffect(() => {
+    if (system) {
+      activeSystemRef.current = system;
+      setActiveSystem(system);
+      refreshData(db, system);
+    } else {
+      activeSystemRef.current = "General";
+      setActiveSystem("General");
+      refreshData(db, "General");
+    }
+  }, [system, db, refreshData]);
+
+  useEffect(() => {
+    async function setup() {
+      try {
+        const database = await SQLite.openDatabaseAsync('orbit_v28_unified.db');
+        setDb(database);
+        await database.execAsync(`
+          CREATE TABLE IF NOT EXISTS categories(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE);
+          CREATE TABLE IF NOT EXISTS tasks(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT,
+  deadline INTEGER,
+  created_at INTEGER,
+  type TEXT DEFAULT 'planet',
+  category TEXT DEFAULT 'General',
+  recurrence TEXT DEFAULT 'none',
+  recurrence_days TEXT,
+  status TEXT DEFAULT 'active'
+);
+          CREATE TABLE IF NOT EXISTS subtasks(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  parent_id INTEGER,
+  title TEXT,
+  is_completed INTEGER DEFAULT 0
+);
+          CREATE TABLE IF NOT EXISTS player_stats (key TEXT PRIMARY KEY, value INTEGER);
+`);
+        try {
+          await database.execAsync("ALTER TABLE tasks ADD COLUMN recurrence_days TEXT");
+        } catch { }
+        const countRes: any = await database.getFirstAsync('SELECT COUNT(*) as c FROM categories');
+        if (countRes?.c === 0) {
+          await database.execAsync(`
+                INSERT INTO categories(name) VALUES('General'), ('Work'), ('Personal'), ('Health'), ('Ideas');
+`);
+        }
+
+        refreshData(database, activeSystemRef.current);
+      } catch (e) {
+        console.log(e);
+      }
+    }
+    setup();
+    startGameLoop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const requestRef = useRef<number | null>(null);
+  const startGameLoop = () => {
+    const animate = () => {
+      setGlobalTime(Date.now());
+      requestRef.current = requestAnimationFrame(animate);
+    };
+    requestRef.current = requestAnimationFrame(animate);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (requestRef.current !== null) {
+        cancelAnimationFrame(requestRef.current);
+      }
+    };
+  }, []);
+
+  const panelHeight = 300;
+  const minimizedOffset = panelHeight - 55;
+  useEffect(() => {
+    Animated.spring(slideAnim, {
+      toValue: isControlsMinimized ? minimizedOffset : 0,
+      useNativeDriver: true,
+      friction: 8,
+      tension: 40
+    }).start();
+  }, [isControlsMinimized, slideAnim, minimizedOffset]);
+  useEffect(() => {
+    if (tasks.length > 0 && db) {
+      const now = Date.now();
+      tasks.forEach(task => {
+        if (task.deadline <= now - 2000) {
+          deleteTaskCascade(task.id, false);
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalTime]);
+
   useFocusEffect(
     React.useCallback(() => {
       if (db) {
@@ -663,9 +681,10 @@ export default function OrbitScreen() {
       onFinish: async () => {
         const now = Date.now();
         const deadline = targetDate.getTime();
+        const recurrenceStr = selectedDays.join(",");
         const result = await db.runAsync(
-          'INSERT INTO tasks (title, deadline, created_at, type, category, recurrence, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [newTaskText, deadline, now, taskType, activeSystem, recurrence, 'active']
+          'INSERT INTO tasks (title, deadline, created_at, type, category, recurrence, recurrence_days, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [newTaskText, deadline, now, taskType, activeSystem, recurrence, recurrenceStr, 'active']
         );
         if (result.lastInsertRowId) {
           setSpawnTimes(prev => ({ ...prev, [result.lastInsertRowId]: now }));
@@ -680,6 +699,22 @@ export default function OrbitScreen() {
     });
   };
 
+  const getNextOccurrence = (allowedDays: number[]) => {
+    const now = new Date();
+    const today = now.getDay();
+    for (let i = 1; i <= 7; i++) {
+      const nextDay = (today + i) % 7;
+      if (allowedDays.includes(nextDay)) {
+        const nextDate = new Date();
+        nextDate.setDate(now.getDate() + i);
+        nextDate.setHours(0, 0, 0, 0);
+        return nextDate.getTime();
+      }
+    }
+    return Date.now() + 86400000;
+  }
+
+
   const updateCredits = async (amount: number) => {
     if (!db) return;
     try {
@@ -691,7 +726,8 @@ export default function OrbitScreen() {
         await db.runAsync("INSERT INTO player_stats (key, value) VALUES ('dark_matter', 0)");
       }
       await db.runAsync("UPDATE player_stats SET value = ? WHERE key = 'dark_matter'", [current + amount]);
-      
+      setCredits(current + amount);
+
     } catch (e) {
       console.log("Error updating credits:", e);
     }
@@ -714,7 +750,7 @@ export default function OrbitScreen() {
       setTimeout(async () => {
         triggerHaptic('medium');
         await db.runAsync('UPDATE subtasks SET is_completed = 1 WHERE id = ?', [subId]);
-        await updateCredits(1); 
+        await updateCredits(1);
         if (selectedTask) {
           setImpactState({ id: selectedTask.id, time: Date.now() });
           setTimeout(() => setImpactState(null), 300);
@@ -732,7 +768,7 @@ export default function OrbitScreen() {
     setSelectedTask(null);
     const catColor = getCategoryPalette(task.category || "General")[0];
 
-    
+
     const reward = task.type === 'satellite' ? 2 : 5;
 
     setActiveCutscene({
@@ -740,6 +776,19 @@ export default function OrbitScreen() {
       color: catColor,
       onFinish: () => {
         deleteTaskCascade(task.id, true);
+        if (task.type === 'satellite' && task.recurrence_days) {
+          try {
+            const days = task.recurrence_days.split(',').map(Number);
+            if (days.length > 0 && db) {
+              const nextStart = getNextOccurrence(days);
+              const nextDeadline = nextStart + 86400000;
+              db.runAsync(
+                'INSERT INTO tasks (title, deadline, created_at, type, category, recurrence, recurrence_days, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [task.title, nextDeadline, nextStart, task.type, task.category, task.recurrence, task.recurrence_days, 'active']
+              ).then(() => refreshData(db, activeSystem));
+            }
+          } catch (e) { console.log("Recurrence error", e); }
+        }
         updateCredits(reward);
         setActiveCutscene(null);
       }
@@ -759,15 +808,15 @@ export default function OrbitScreen() {
     setIsControlsMinimized(!isControlsMinimized);
   }
   const renderSolarSystem = () => {
-    
-    
+
+
     const sortedTasks = [...tasks].sort((a, b) => {
       const timeRemainingA = a.deadline - globalTime;
       const timeRemainingB = b.deadline - globalTime;
-      
-      
-      
-      
+
+
+
+
       return timeRemainingB - timeRemainingA;
     });
 
@@ -789,6 +838,7 @@ export default function OrbitScreen() {
       let chaosY = 0;
       const spawnTime = spawnTimes[task.id] || task.created_at || 0;
       const age = globalTime - spawnTime;
+      if (age < 0) return null; // Don't render future tasks
       if (age < 800) {
         const t = age / 800;
         const easeOutBack = 1 + 2.70158 * Math.pow(t - 1, 3) + 1.70158 * Math.pow(t - 1, 2);
@@ -807,7 +857,7 @@ export default function OrbitScreen() {
       const planetAngle = (index * 2) + (globalTime * BASE_SPEED);
       const planetX = CENTER_X + orbitRadius * Math.cos(planetAngle) + chaosX;
       const planetY = CENTER_Y + (orbitRadius * ellipticalY) * Math.sin(planetAngle) + chaosY;
-      const [mainColor, shadowColor] = getCategoryPalette(task.category || "General");
+      const [mainColor] = getCategoryPalette(task.category || "General");
       if (hoursRemaining < 1 && !isDying) {
         const pulse = Math.sin(globalTime / 150) * 0.1;
         scale += pulse;
@@ -910,7 +960,7 @@ export default function OrbitScreen() {
             })
           }
           <G transform={`translate(${planetX}, ${planetY}) scale(${scale})`} onPress={() => { triggerHaptic('light'); setSelectedTask(task); }}>
-            {}
+            { }
             <Circle r={30} fill="transparent" />
             {task.type === 'comet' && !isDying ? (
               <>
@@ -950,11 +1000,7 @@ export default function OrbitScreen() {
       );
     });
   };
-  const handleDurationSelect = (ms: number) => {
-    if (ms === -1) { setIsCustomMode(true); setIsCalendarMode(false); }
-    else if (ms === -2) { setIsCalendarMode(true); }
-    else { setIsCustomMode(false); setIsCalendarMode(false); setSelectedDuration(ms); }
-  }
+
   const getFormatTime = (ms: number) => {
     const mins = Math.floor(ms / 60000);
     const hours = Math.floor(mins / 60);
@@ -1031,7 +1077,7 @@ export default function OrbitScreen() {
       </View>
     )
   }
-  const categories = categoriesList.length > 0 ? categoriesList : ["General", "Work", "Personal", "Health", "Ideas"];
+
   const previewColors = getCategoryPalette(activeSystem);
   const toggleUniverseMode = () => {
     const toUniverse = !isUniverseView;
@@ -1209,7 +1255,7 @@ export default function OrbitScreen() {
         delete systemAngleAnims.current[k];
       }
     });
-  }, [categoriesList]);
+  }, [categoriesList, destroyingSystem]);
   const renderKnownUniverse = () => {
     const categories = categoriesList.length > 0 ? categoriesList : ["General"];
     const systemCount = categories.length;
@@ -1260,7 +1306,6 @@ export default function OrbitScreen() {
           {categories.map((cat, i) => {
             if (!systemAngleAnims.current[cat]) systemAngleAnims.current[cat] = new Animated.Value(i * (Math.PI * 2 / systemCount));
             const angleAnim = systemAngleAnims.current[cat];
-            const universeRadius = width * 0.40;
             const sunR = 6;
             const [c1] = getCategoryPalette(cat);
             const orbitRad = orbitLoop.interpolate({ inputRange: [0, 1], outputRange: [0, Math.PI * 2] });
@@ -1400,6 +1445,10 @@ export default function OrbitScreen() {
           <TouchableOpacity onPress={toggleUniverseMode}>
             <Text style={styles.subtitle}>{activeSystem.toUpperCase()} SYSTEM ▾</Text>
           </TouchableOpacity>
+          <View style={{ position: 'absolute', top: 60, right: 20, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Ionicons name="cube-outline" size={14} color="#0be881" />
+            <Text style={{ color: '#0be881', fontWeight: 'bold', fontSize: 12, fontFamily: Platform.select({ ios: 'Courier', default: 'monospace' }) }}>{credits} DM</Text>
+          </View>
         </View>
         <Pressable onLongPress={() => { triggerHaptic('medium'); setIsControlsMinimized(false); }} style={{ flex: 1 }}>
           <View style={styles.orbitContainer}>
@@ -1412,7 +1461,7 @@ export default function OrbitScreen() {
               </Defs>
               <StarField />
 
-              {}
+              { }
               {activeCosmetics.includes('upgrade_sensor') && (
                 <G transform={`translate(${CENTER_X}, ${CENTER_Y})`}>
                   <Circle r={width * 0.3} stroke={getCategoryPalette(activeSystem)[0]} strokeWidth="1" strokeOpacity="0.3" strokeDasharray="10, 10" />
@@ -1422,7 +1471,7 @@ export default function OrbitScreen() {
                 </G>
               )}
 
-              {}
+              { }
               {activeCosmetics.includes('cosmetic_trails') && (
                 <StarField trailMode={true} />
               )}
@@ -1431,7 +1480,7 @@ export default function OrbitScreen() {
                 <Circle cx={0} cy={0} r={SUN_RADIUS} fill="url(#sunGrad)" onPress={toggleUniverseMode} />
                 <Circle cx={0} cy={0} r={SUN_RADIUS + 15} fill={getCategoryPalette(activeSystem)[0]} opacity={0.15} />
 
-                {}
+                { }
                 {activeCosmetics.includes('cosmetic_shield') && (
                   <Circle cx={0} cy={0} r={SUN_RADIUS + 25} stroke="#0be881" strokeWidth="2" strokeOpacity="0.6" strokeDasharray="2,5" fill="none" />
                 )}
@@ -1440,8 +1489,8 @@ export default function OrbitScreen() {
             </Svg>
           </View>
         </Pressable>
-      </Animated.View>
-      <Animated.View style={[styles.controls, { transform: [{ translateY: slideAnim }], height: isCustomMode ? 400 : 300 }]}>
+      </Animated.View >
+      <Animated.View style={[styles.controls, { transform: [{ translateY: slideAnim }], height: 300 }]}>
         <TouchableOpacity style={styles.handleBar} onPress={toggleControls}>
           <View style={styles.handleIcon} />
           <Text style={styles.handleText}>{isControlsMinimized ? "ADD MISSION" : "MINIMIZE"}</Text>
@@ -1480,18 +1529,7 @@ export default function OrbitScreen() {
             <Text style={styles.launchText}>LAUNCH</Text>
           </TouchableOpacity>
         </View>
-        {isCustomMode && (
-          <View style={styles.customRow}>
-            <TextInput
-              style={styles.customInput}
-              placeholder="Enter Hours..."
-              placeholderTextColor="#666"
-              value={customHours}
-              onChangeText={setCustomHours}
-              keyboardType="numeric"
-            />
-          </View>
-        )}
+
       </Animated.View>
       <Modal transparent animationType="slide" visible={isLaunchPadOpen} onRequestClose={() => setIsLaunchPadOpen(false)}>
         <View style={styles.modalOverlay}>
@@ -1546,6 +1584,32 @@ export default function OrbitScreen() {
                 <Text style={styles.typeText}>SAT</Text>
               </TouchableOpacity>
             </View>
+            {taskType === 'satellite' && (
+              <View style={{ marginBottom: 15 }}>
+                <Text style={[styles.controlLabel, { marginBottom: 10 }]}>ACTIVE DAYS</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => {
+                    const isSelected = selectedDays.includes(index);
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        onPress={() => {
+                          triggerHaptic('light');
+                          setSelectedDays(prev => prev.includes(index) ? prev.filter(d => d !== index) : [...prev, index]);
+                        }}
+                        style={{
+                          width: 35, height: 35, borderRadius: 10,
+                          backgroundColor: isSelected ? '#0be881' : '#111',
+                          justifyContent: 'center', alignItems: 'center',
+                          borderWidth: 1, borderColor: isSelected ? '#0be881' : '#333'
+                        }}>
+                        <Text style={{ color: isSelected ? '#000' : '#888', fontWeight: 'bold' }}>{day}</Text>
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              </View>
+            )}
             {taskType === 'comet' && (
               <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 15 }}>
                 <TouchableOpacity onPress={() => setRecurrence('monthly')} style={[styles.recBtn, recurrence === 'monthly' && styles.recBtnActive]}>
@@ -1649,7 +1713,7 @@ export default function OrbitScreen() {
           </Animated.View>
         </View>
       </Modal>
-      {isCalendarMode && <SciFiCalendar onSelectDate={handleDatePicked} onClose={() => setIsCalendarMode(false)} />}
+
       {isCalendarOpen && <SciFiCalendar onSelectDate={handleDatePicked} onClose={() => setIsCalendarOpen(false)} />}
       {isTimePickerOpen && <SciFiTimePicker onSelectTime={handleTimePicked} onClose={() => setIsTimePickerOpen(false)} />}
       <Modal transparent animationType="fade" visible={!!selectedTask} onRequestClose={() => setSelectedTask(null)}>
@@ -1668,53 +1732,60 @@ export default function OrbitScreen() {
                     {getFormatTime(selectedTask.deadline - Date.now())} remaining
                   </Text>
                 </View>
-                {renderCollisionProgress(selectedTask.id, selectedTask.category || "General")}
-                <View style={styles.subtaskList}>
-                  <Text style={styles.subtaskHeader}>MOONS</Text>
-                  <FlatList
-                    data={subTasks.filter(s => s.parent_id === selectedTask.id)}
-                    keyExtractor={item => item.id.toString()}
-                    renderItem={({ item }) => {
-                      const isDying = dyingMoons[item.id] !== undefined;
-                      return (
-                        <TouchableOpacity
-                          style={styles.subtaskItem}
-                          onPress={() => toggleSubTask(item.id, item.is_completed)}
-                          disabled={isDying}
-                        >
-                          <View style={[styles.checkbox, item.is_completed && styles.checkboxChecked]} />
-                          <Text style={[styles.subtaskText, item.is_completed && styles.subtaskTextDone]}>
-                            {item.title} {isDying && "!"}
-                          </Text>
-                        </TouchableOpacity>
-                      )
-                    }}
-                    ListEmptyComponent={<Text style={styles.emptySub}>Add subtasks to spawn moons.</Text>}
-                    style={{ maxHeight: 150 }}
-                  />
-                  <View style={styles.subtaskInputRow}>
-                    <TextInput
-                      style={styles.subtaskInput}
-                      placeholder="+ Add Moon..."
-                      placeholderTextColor="#555"
-                      value={newSubTaskText}
-                      onChangeText={setNewSubTaskText}
-                    />
-                    {newSubTaskText.length > 0 && (
-                      <TouchableOpacity onPress={addSubTask}>
-                        <Text style={styles.addSubText}>ADD</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
+                <View style={[styles.modalBadge, { backgroundColor: '#1e272e', marginTop: 0 }]}>
+                  <Text style={[styles.modalBadgeText, { color: '#0be881' }]}>
+                    REWARD: +{selectedTask.type === 'satellite' ? 2 : 5} DM
+                  </Text>
                 </View>
+                {renderCollisionProgress(selectedTask.id, selectedTask.category || "General")}
+                {selectedTask.type !== 'satellite' && (
+                  <View style={styles.subtaskList}>
+                    <Text style={styles.subtaskHeader}>MOONS</Text>
+                    <FlatList
+                      data={subTasks.filter(s => s.parent_id === selectedTask.id)}
+                      keyExtractor={item => item.id.toString()}
+                      renderItem={({ item }) => {
+                        const isDying = dyingMoons[item.id] !== undefined;
+                        return (
+                          <TouchableOpacity
+                            style={styles.subtaskItem}
+                            onPress={() => toggleSubTask(item.id, item.is_completed)}
+                            disabled={isDying}
+                          >
+                            <View style={[styles.checkbox, item.is_completed && styles.checkboxChecked]} />
+                            <Text style={[styles.subtaskText, item.is_completed && styles.subtaskTextDone]}>
+                              {item.title} {isDying && "!"}
+                            </Text>
+                          </TouchableOpacity>
+                        )
+                      }}
+                      ListEmptyComponent={<Text style={styles.emptySub}>Add subtasks to spawn moons.</Text>}
+                      style={{ maxHeight: 150 }}
+                    />
+                    <View style={styles.subtaskInputRow}>
+                      <TextInput
+                        style={styles.subtaskInput}
+                        placeholder="+ Add Moon..."
+                        placeholderTextColor="#555"
+                        value={newSubTaskText}
+                        onChangeText={setNewSubTaskText}
+                      />
+                      {newSubTaskText.length > 0 && (
+                        <TouchableOpacity onPress={addSubTask}>
+                          <Text style={styles.addSubText}>ADD</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                )}
                 <TouchableOpacity style={styles.completeBtn} onPress={() => completeMissionAction(selectedTask)}>
                   <Text style={styles.completeText}>COMPLETE MISSION</Text>
                 </TouchableOpacity>
               </>
             )}
           </View>
-        </View>
-      </Modal>
+        </View >
+      </Modal >
 
       <Modal transparent visible={isCustomizationOpen} animationType="slide" onRequestClose={() => setIsCustomizationOpen(false)}>
         <View style={styles.modalOverlay}>
@@ -1781,7 +1852,7 @@ export default function OrbitScreen() {
             />
 
             <TouchableOpacity
-              style={[styles.cancelLaunchBtn, { marginTop: 20 }]}
+              style={[styles.cancelLaunchBtn, { marginTop: 20, flex: 0, width: '100%', paddingVertical: 22 }]}
               onPress={() => setIsCustomizationOpen(false)}
             >
               <Text style={styles.closeText}>CLOSE</Text>
@@ -1789,7 +1860,7 @@ export default function OrbitScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </View >
   );
 }
 const styles = StyleSheet.create({
@@ -1833,7 +1904,7 @@ const styles = StyleSheet.create({
   modalBox: { width: '90%', backgroundColor: '#000000', borderRadius: 25, padding: 25, shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 20 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   modalTitle: { color: 'white', fontSize: 24, fontWeight: 'bold', flex: 1 },
-  closeText: { color: '#808e9b', fontSize: 14, fontWeight: 'bold', padding: 5 },
+  closeText: { color: 'white', fontSize: 14, fontWeight: 'bold', padding: 5 },
   modalBadge: { alignSelf: 'flex-start', backgroundColor: '#111111', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginTop: 5, marginBottom: 10 },
   modalBadgeText: { color: '#d2dae2', fontSize: 12, fontWeight: 'bold' },
   progressText: { color: '#0984e3', fontSize: 12, fontWeight: 'bold', marginTop: 5 },
@@ -1850,6 +1921,7 @@ const styles = StyleSheet.create({
   addSubText: { color: '#0be881', fontWeight: 'bold', paddingLeft: 10 },
   completeBtn: { backgroundColor: '#0be881', width: '100%', paddingVertical: 18, borderRadius: 15, alignItems: 'center' },
   completeText: { color: '#1e272e', fontWeight: '900', fontSize: 16, letterSpacing: 1 },
+
   calContainer: { width: '85%', backgroundColor: '#000000', borderRadius: 25, padding: 20, alignItems: 'center' },
   calHeader: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 20, paddingHorizontal: 10 },
   calTitle: { color: 'white', fontSize: 18, fontWeight: 'bold' },

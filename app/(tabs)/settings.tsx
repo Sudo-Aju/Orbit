@@ -2,14 +2,13 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import * as SQLite from 'expo-sqlite';
 import React, { useEffect, useState } from 'react';
-import { Alert, Dimensions, FlatList, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-const { width } = Dimensions.get('window');
 
 type StoreItem = {
     id: string;
@@ -29,12 +28,14 @@ const STORE_ITEMS: StoreItem[] = [
     { id: 'theme_void', name: 'Void Darkness', description: 'Embrace the abyss with this dark theme.', price: 200, icon: 'moon-outline', type: 'theme' },
 ];
 
-export default function ExploreScreen() {
+export default function SettingsScreen() {
     const colorScheme = useColorScheme() ?? 'dark';
     const theme = Colors[colorScheme];
     const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
     const [credits, setCredits] = useState(0);
     const [ownedItems, setOwnedItems] = useState<string[]>([]);
+    const [currentView, setCurrentView] = useState<'menu' | 'store' | 'profile'>('menu');
+    const [profileName, setProfileName] = useState("Commander");
 
     useEffect(() => {
         async function setup() {
@@ -46,16 +47,24 @@ export default function ExploreScreen() {
                     CREATE TABLE IF NOT EXISTS inventory (item_id TEXT PRIMARY KEY, acquired_at INTEGER);
                 `);
 
-                
                 const res: any = await database.getFirstAsync("SELECT value FROM player_stats WHERE key = 'dark_matter'");
                 if (res) {
                     setCredits(res.value);
                 } else {
-                    await database.runAsync("INSERT INTO player_stats (key, value) VALUES ('dark_matter', 100)"); 
+                    await database.runAsync("INSERT INTO player_stats (key, value) VALUES ('dark_matter', 100)");
                     setCredits(100);
                 }
 
-                
+                // Profile Name (using key='profile_name' but storing string as value? value is INTEGER in schema... I need to alter schema or use a new table or just ignore for now and use local state if schema is strict)
+                // The schema says `value INTEGER`. I will use a new table for string settings if needed, or just keep it local for this session if I can't migrate.
+                // Actually, I can use a text_value column.
+                try {
+                    await database.execAsync("ALTER TABLE player_stats ADD COLUMN text_value TEXT");
+                } catch { }
+
+                const nameRes: any = await database.getFirstAsync("SELECT text_value FROM player_stats WHERE key = 'profile_name'");
+                if (nameRes && nameRes.text_value) setProfileName(nameRes.text_value);
+
                 refreshInventory(database);
             } catch (e) {
                 console.log(e);
@@ -97,6 +106,15 @@ export default function ExploreScreen() {
         ]);
     };
 
+    const saveProfile = async () => {
+        if (!db) return;
+        try {
+            await db.runAsync("INSERT OR REPLACE INTO player_stats (key, value, text_value) VALUES ('profile_name', 0, ?)", [profileName]);
+            triggerHaptic('success');
+            Alert.alert("Profile Updated", "Identity confirmed.");
+        } catch (e) { console.log(e); }
+    }
+
     const triggerHaptic = (type: 'light' | 'medium' | 'success' | 'error') => {
         if (Platform.OS === 'web') return;
         if (type === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -105,10 +123,9 @@ export default function ExploreScreen() {
         if (type === 'error') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     };
 
-    const renderItem = ({ item }: { item: StoreItem }) => {
+    const renderStoreItem = ({ item }: { item: StoreItem }) => {
         const isOwned = ownedItems.includes(item.id);
         const canAfford = credits >= item.price;
-
         return (
             <View style={[styles.itemCard, { borderColor: theme.border, backgroundColor: theme.card }]}>
                 <View style={[styles.iconContainer, { backgroundColor: isOwned ? theme.tint : '#333' }]}>
@@ -138,12 +155,58 @@ export default function ExploreScreen() {
         );
     };
 
+    const renderMenu = () => (
+        <View style={styles.menuContainer}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => setCurrentView('profile')}>
+                <View style={styles.menuIconBox}><Ionicons name="person-outline" size={24} color="white" /></View>
+                <View>
+                    <Text style={styles.menuTitle}>Personalization</Text>
+                    <Text style={styles.menuSub}>Identity & Preferences</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#666" style={{ marginLeft: 'auto' }} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem} onPress={() => setCurrentView('store')}>
+                <View style={styles.menuIconBox}><Ionicons name="cart-outline" size={24} color="white" /></View>
+                <View>
+                    <Text style={styles.menuTitle}>Galactic Store & Themes</Text>
+                    <Text style={styles.menuSub}>Spend Dark Matter</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#666" style={{ marginLeft: 'auto' }} />
+            </TouchableOpacity>
+        </View>
+    );
+
+    const renderProfile = () => (
+        <View style={styles.contentContainer}>
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>COMMANDER NAME</Text>
+                <TextInput
+                    style={styles.input}
+                    value={profileName}
+                    onChangeText={setProfileName}
+                    placeholder="Enter Name"
+                    placeholderTextColor="#555"
+                />
+            </View>
+            <TouchableOpacity style={styles.saveBtn} onPress={saveProfile}>
+                <Text style={styles.saveBtnText}>SAVE IDENTITY</Text>
+            </TouchableOpacity>
+        </View>
+    );
+
     return (
         <ThemedView style={styles.container}>
             <View style={styles.header}>
                 <View>
-                    <ThemedText type="title">Galactic Store</ThemedText>
-                    <ThemedText style={styles.subtitle}>Customize your universe</ThemedText>
+                    {currentView === 'menu' ? (
+                        <ThemedText type="title">SETTINGS</ThemedText>
+                    ) : (
+                        <TouchableOpacity onPress={() => setCurrentView('menu')} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Ionicons name="arrow-back" size={24} color={theme.tint} />
+                            <ThemedText type="title" style={{ marginLeft: 10 }}>{currentView === 'store' ? 'STORE' : 'PROFILE'}</ThemedText>
+                        </TouchableOpacity>
+                    )}
                 </View>
                 <View style={styles.creditsContainer}>
                     <Ionicons name="cube-outline" size={16} color={theme.tint} />
@@ -151,13 +214,34 @@ export default function ExploreScreen() {
                 </View>
             </View>
 
-            <FlatList
-                data={STORE_ITEMS}
-                keyExtractor={item => item.id}
-                renderItem={renderItem}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-            />
+            {currentView === 'menu' && renderMenu()}
+            {currentView === 'profile' && renderProfile()}
+            {currentView === 'store' && (
+                <FlatList
+                    data={STORE_ITEMS}
+                    keyExtractor={item => item.id}
+                    ListHeaderComponent={
+                        <View style={styles.earningInfo}>
+                            <ThemedText style={styles.earningTitle}>INCOME SOURCES</ThemedText>
+                            <View style={styles.earningRow}>
+                                <Ionicons name="checkmark-circle-outline" size={16} color={theme.tint} />
+                                <ThemedText style={styles.earningText}>Mission Complete (Planet/Comet): <ThemedText style={{ color: theme.tint, fontWeight: 'bold' }}>+5 DM</ThemedText></ThemedText>
+                            </View>
+                            <View style={styles.earningRow}>
+                                <Ionicons name="repeat-outline" size={16} color={theme.tint} />
+                                <ThemedText style={styles.earningText}>Daily Task (Satellite): <ThemedText style={{ color: theme.tint, fontWeight: 'bold' }}>+2 DM</ThemedText></ThemedText>
+                            </View>
+                            <View style={styles.earningRow}>
+                                <Ionicons name="ellipse-outline" size={16} color={theme.tint} />
+                                <ThemedText style={styles.earningText}>Subtask (Moon): <ThemedText style={{ color: theme.tint, fontWeight: 'bold' }}>+1 DM</ThemedText></ThemedText>
+                            </View>
+                        </View>
+                    }
+                    renderItem={renderStoreItem}
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={false}
+                />
+            )}
         </ThemedView>
     );
 }
@@ -174,11 +258,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderBottomWidth: 1,
         borderBottomColor: '#222',
-    },
-    subtitle: {
-        fontSize: 12,
-        color: '#888',
-        marginTop: 2,
     },
     creditsContainer: {
         flexDirection: 'row',
@@ -249,4 +328,96 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         fontSize: 12,
     },
+    earningInfo: {
+        marginBottom: 20,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        padding: 15,
+        borderRadius: 15,
+        borderWidth: 1,
+        borderColor: '#333'
+    },
+    earningTitle: {
+        fontSize: 10,
+        fontWeight: 'bold',
+        marginBottom: 10,
+        color: '#666',
+        letterSpacing: 1
+    },
+    earningRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 5,
+        gap: 10
+    },
+    earningText: {
+        fontSize: 12,
+        color: '#888'
+    },
+    menuContainer: {
+        padding: 20
+    },
+    menuItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        padding: 20,
+        borderRadius: 15,
+        marginBottom: 15,
+        borderWidth: 1,
+        borderColor: '#333'
+    },
+    menuIconBox: {
+        width: 50,
+        height: 50,
+        borderRadius: 12,
+        backgroundColor: '#111',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 15,
+        borderWidth: 1,
+        borderColor: '#333'
+    },
+    menuTitle: {
+        color: 'white',
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginBottom: 5
+    },
+    menuSub: {
+        color: '#888',
+        fontSize: 12
+    },
+    contentContainer: {
+        padding: 20
+    },
+    inputGroup: {
+        marginBottom: 30
+    },
+    label: {
+        color: '#808e9b',
+        fontSize: 12,
+        fontWeight: 'bold',
+        marginBottom: 10,
+        letterSpacing: 1
+    },
+    input: {
+        backgroundColor: '#111',
+        borderWidth: 1,
+        borderColor: '#333',
+        borderRadius: 12,
+        padding: 15,
+        color: 'white',
+        fontSize: 16
+    },
+    saveBtn: {
+        backgroundColor: '#0be881',
+        padding: 18,
+        borderRadius: 15,
+        alignItems: 'center'
+    },
+    saveBtnText: {
+        color: '#000',
+        fontWeight: '900',
+        letterSpacing: 1
+    }
 });
