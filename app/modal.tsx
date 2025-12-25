@@ -48,7 +48,7 @@ export default function ModalScreen() {
         <ThemedText>System boot sequence completed.</ThemedText>
       </View>
 
-      {}
+
       <StatusBar style={Platform.OS === 'ios' ? 'light' : 'auto'} />
     </ThemedView>
   );

@@ -55,9 +55,6 @@ export default function SettingsScreen() {
                     setCredits(100);
                 }
 
-                // Profile Name (using key='profile_name' but storing string as value? value is INTEGER in schema... I need to alter schema or use a new table or just ignore for now and use local state if schema is strict)
-                // The schema says `value INTEGER`. I will use a new table for string settings if needed, or just keep it local for this session if I can't migrate.
-                // Actually, I can use a text_value column.
                 try {
                     await database.execAsync("ALTER TABLE player_stats ADD COLUMN text_value TEXT");
                 } catch { }
@@ -177,6 +174,28 @@ export default function SettingsScreen() {
         </View>
     );
 
+    const [hapticsEnabled, setHapticsEnabled] = useState(true);
+    const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+    const [rankIndex, setRankIndex] = useState(0);
+    const RANKS = ["Cadet", "Explorer", "Captain", "Admiral"];
+
+    useEffect(() => {
+        if (!db) return;
+        const loadSettings = async () => {
+            try {
+                const hRes: any = await db.getFirstAsync("SELECT value FROM player_stats WHERE key = 'haptics_enabled'");
+                if (hRes) setHapticsEnabled(hRes.value === 1);
+
+                const nRes: any = await db.getFirstAsync("SELECT value FROM player_stats WHERE key = 'notifications_enabled'");
+                if (nRes) setNotificationsEnabled(nRes.value === 1);
+
+                const rRes: any = await db.getFirstAsync("SELECT value FROM player_stats WHERE key = 'rank_index'");
+                if (rRes) setRankIndex(rRes.value);
+            } catch { }
+        };
+        loadSettings();
+    }, [db]);
+
     const renderProfile = () => (
         <View style={styles.contentContainer}>
             <View style={styles.inputGroup}>
@@ -189,8 +208,54 @@ export default function SettingsScreen() {
                     placeholderTextColor="#555"
                 />
             </View>
-            <TouchableOpacity style={styles.saveBtn} onPress={saveProfile}>
-                <Text style={styles.saveBtnText}>SAVE IDENTITY</Text>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>RANK</Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                    {RANKS.map((rank, i) => (
+                        <TouchableOpacity
+                            key={rank}
+                            onPress={() => { triggerHaptic('light'); setRankIndex(i); }}
+                            style={[
+                                styles.rankBtn,
+                                rankIndex === i && { backgroundColor: theme.tint, borderColor: theme.tint }
+                            ]}
+                        >
+                            <Text style={[styles.rankText, rankIndex === i && { color: '#fff' }]}>{rank}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            </View>
+
+            <View style={[styles.inputGroup, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+                <Text style={styles.label}>HAPTIC FEEDBACK</Text>
+                <TouchableOpacity
+                    onPress={() => setHapticsEnabled(!hapticsEnabled)}
+                    style={[styles.toggleBtn, hapticsEnabled && { backgroundColor: '#0be881' }]}
+                >
+                    <View style={[styles.toggleCircle, hapticsEnabled && { alignSelf: 'flex-end' }]} />
+                </TouchableOpacity>
+            </View>
+
+            <View style={[styles.inputGroup, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+                <Text style={styles.label}>NOTIFICATIONS</Text>
+                <TouchableOpacity
+                    onPress={() => setNotificationsEnabled(!notificationsEnabled)}
+                    style={[styles.toggleBtn, notificationsEnabled && { backgroundColor: '#0be881' }]}
+                >
+                    <View style={[styles.toggleCircle, notificationsEnabled && { alignSelf: 'flex-end' }]} />
+                </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.saveBtn} onPress={async () => {
+                await saveProfile();
+                if (db) {
+                    await db.runAsync("INSERT OR REPLACE INTO player_stats (key, value) VALUES ('haptics_enabled', ?)", [hapticsEnabled ? 1 : 0]);
+                    await db.runAsync("INSERT OR REPLACE INTO player_stats (key, value) VALUES ('notifications_enabled', ?)", [notificationsEnabled ? 1 : 0]);
+                    await db.runAsync("INSERT OR REPLACE INTO player_stats (key, value) VALUES ('rank_index', ?)", [rankIndex]);
+                }
+            }}>
+                <Text style={styles.saveBtnText}>SAVE SETTINGS</Text>
             </TouchableOpacity>
         </View>
     );
@@ -419,5 +484,32 @@ const styles = StyleSheet.create({
         color: '#000',
         fontWeight: '900',
         letterSpacing: 1
+    },
+    rankBtn: {
+        paddingVertical: 10,
+        paddingHorizontal: 15,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#333',
+        backgroundColor: '#111'
+    },
+    rankText: {
+        color: '#888',
+        fontSize: 12,
+        fontWeight: 'bold'
+    },
+    toggleBtn: {
+        width: 50,
+        height: 30,
+        borderRadius: 15,
+        backgroundColor: '#333',
+        padding: 3,
+        justifyContent: 'center'
+    },
+    toggleCircle: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: 'white'
     }
 });

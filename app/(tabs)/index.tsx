@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as SQLite from 'expo-sqlite';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, Easing, FlatList, LayoutAnimation, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View } from 'react-native';
+import { Alert, Animated, Dimensions, Easing, FlatList, LayoutAnimation, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, Line, Path, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -59,7 +59,6 @@ const CutsceneOverlay = ({ type, taskType, color, onFinish }: { type: 'launch' |
       ]),
       Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true })
     ]).start(() => onFinish());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const spin = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   const reverseSpin = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['360deg', '0deg'] });
@@ -98,7 +97,7 @@ const CutsceneOverlay = ({ type, taskType, color, onFinish }: { type: 'launch' |
     if (taskType === 'planet') {
       return (
         <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-          { }
+
           <Animated.View style={{ position: 'absolute', transform: [{ scale: planetFormScale }, { rotate: spin }] }}>
             <Svg height={200} width={200} viewBox="-100 -100 200 200">
               <Circle r={70} stroke={color} strokeWidth={2} strokeDasharray="10,30" fill="none" opacity={0.6} />
@@ -109,7 +108,7 @@ const CutsceneOverlay = ({ type, taskType, color, onFinish }: { type: 'launch' |
               <Circle r={50} stroke={color} strokeWidth={4} strokeDasharray="30,20" fill="none" opacity={0.8} />
             </Svg>
           </Animated.View>
-          { }
+
           <Animated.View style={{ opacity: planetOpacity, transform: [{ scale: planetFormScale }] }}>
             <Svg height={100} width={100} viewBox="-50 -50 100 100">
               <Circle r={30} fill={color} />
@@ -125,7 +124,7 @@ const CutsceneOverlay = ({ type, taskType, color, onFinish }: { type: 'launch' |
           <Svg height={150} width={80} viewBox="0 0 60 120">
             <Path d="M 30 0 L 60 60 L 30 50 L 0 60 Z" fill="#dfe6e9" />
             <Rect x="20" y="60" width="20" height="15" fill="#636e72" />
-            { }
+
             <G transform="translate(30, 75)">
               <Path d="M -10 0 L 10 0 L 0 40 Z" fill="#ff9f43" />
               <Path d="M -5 0 L 5 0 L 0 25 Z" fill="#feca57" />
@@ -149,16 +148,16 @@ const CutsceneOverlay = ({ type, taskType, color, onFinish }: { type: 'launch' |
             zIndex: 10
           }}
         >
-          { }
+
           <Animated.View style={{ transform: [{ rotate: '-30deg' }] }}>
             <Svg height={100} width={300} viewBox="0 0 300 100">
-              { }
+
               <Path d="M 280 50 L 50 30 L 50 70 Z" fill={color} opacity={0.3} />
               <Path d="M 280 50 L 100 40 L 100 60 Z" fill={color} opacity={0.6} />
-              { }
+
               <Circle cx="280" cy="50" r="15" fill={color} />
               <Circle cx="280" cy="50" r="8" fill="white" />
-              { }
+
               <Circle cx="200" cy="40" r="3" fill="white" opacity={0.6} />
               <Circle cx="150" cy="65" r="2" fill="white" opacity={0.4} />
             </Svg>
@@ -406,6 +405,7 @@ export default function OrbitScreen() {
   const [ownedItems, setOwnedItems] = useState<string[]>([]);
   const [credits, setCredits] = useState(0);
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   const refreshData = React.useCallback(async (database = db, categoryFilter = activeSystem) => {
     if (database) {
@@ -599,7 +599,6 @@ export default function OrbitScreen() {
     }
     setup();
     startGameLoop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const requestRef = useRef<number | null>(null);
@@ -638,7 +637,6 @@ export default function OrbitScreen() {
         }
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [globalTime]);
 
   useFocusEffect(
@@ -838,7 +836,7 @@ export default function OrbitScreen() {
       let chaosY = 0;
       const spawnTime = spawnTimes[task.id] || task.created_at || 0;
       const age = globalTime - spawnTime;
-      if (age < 0) return null; // Don't render future tasks
+      if (age < 0) return null;
       if (age < 800) {
         const t = age / 800;
         const easeOutBack = 1 + 2.70158 * Math.pow(t - 1, 3) + 1.70158 * Math.pow(t - 1, 2);
@@ -905,7 +903,7 @@ export default function OrbitScreen() {
       return (
         <G key={task.id}>
           <Defs>
-            { }
+
             <RadialGradient
               id={`grad_${task.id}`}
               cx={`${50 + 25 * Math.cos(planetAngle + Math.PI)}%`}
@@ -916,7 +914,7 @@ export default function OrbitScreen() {
               <Stop offset="0%" stopColor="#fff" stopOpacity="0.9" />
               <Stop offset="100%" stopColor={mainColor} stopOpacity="1" />
             </RadialGradient>
-            { }
+
             {task.type === 'satellite' && (
               <>
                 <RadialGradient
@@ -935,9 +933,9 @@ export default function OrbitScreen() {
                 </RadialGradient>
               </>
             )}
-            { }
+
           </Defs>
-          { }
+
           {!isDying && (
             <Ellipse
               cx={CENTER_X}
@@ -960,7 +958,7 @@ export default function OrbitScreen() {
             })
           }
           <G transform={`translate(${planetX}, ${planetY}) scale(${scale})`} onPress={() => { triggerHaptic('light'); setSelectedTask(task); }}>
-            { }
+
             <Circle r={30} fill="transparent" />
             {task.type === 'comet' && !isDying ? (
               <>
@@ -973,11 +971,11 @@ export default function OrbitScreen() {
               </>
             ) : task.type === 'satellite' && !isDying ? (
               <G transform={`rotate(${rotation}) scale(0.4)`}>
-                { }
+
                 <Rect x="-4" y="-4" width="8" height="8" fill={`url(#sat_body_${task.id})`} rx="2" stroke="#7f8fa6" strokeWidth="0.5" />
                 <Line x1="0" y1="-4" x2="0" y2="-16" stroke="#95a5a6" strokeWidth="2" />
                 <Line x1="0" y1="4" x2="0" y2="16" stroke="#95a5a6" strokeWidth="2" />
-                { }
+
                 <Rect x="-6" y="-22" width="12" height="8" fill={`url(#sat_panel_${task.id})`} stroke="#fff" strokeWidth="0.5" />
                 <Rect x="-6" y="14" width="12" height="8" fill={`url(#sat_panel_${task.id})`} stroke="#fff" strokeWidth="0.5" />
                 <Circle r={2} fill="red" opacity={Math.sin(globalTime / 100) > 0 ? 1 : 0.2} />
@@ -1265,7 +1263,7 @@ export default function OrbitScreen() {
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: universeOpacity, pointerEvents: isUniverseView ? 'auto' : 'none' }]}>
         <Svg height={height} width={width}>
           <Defs>
-            { }
+
             <RadialGradient id="blackHole" cx="50%" cy="50%" rx="50%" ry="50%">
               <Stop offset="40%" stopColor="#000" stopOpacity="1" />
               <Stop offset="70%" stopColor="#2d3436" stopOpacity="1" />
@@ -1284,7 +1282,7 @@ export default function OrbitScreen() {
           <G transform={`translate(${CENTER_X}, ${CENTER_Y}) scale(${bhPulse})`}>
             <Circle r={25} fill="url(#blackHole)" />
             <G transform={`rotate(${bhRotation})`}>
-              { }
+
               {Array.from({ length: Math.min(archivedCount, 100) }).map((_, i) => {
                 const angle = (i * 137.5) * (Math.PI / 180);
                 const dist = 25 + (i % 30) + (Math.sin(i) * 10);
@@ -1343,7 +1341,7 @@ export default function OrbitScreen() {
                   { scale: scale }
                 ]}
               >
-                { }
+
                 <AnimatedG transform={[{ rotate: counterRotStr }]}>
                   <Circle r={sunR + 20} fill="transparent" />
                   {items.map((t, ti) => {
@@ -1363,7 +1361,7 @@ export default function OrbitScreen() {
             )
           })}
         </Svg>
-        { }
+
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           {categories.map((cat, i) => {
             if (!systemAngleAnims.current[cat]) return null;
@@ -1407,7 +1405,7 @@ export default function OrbitScreen() {
             )
           })}
         </View>
-        { }
+
         <View style={styles.headerOverlay}>
           <Text style={styles.headerTitle}>KNOWN UNIVERSE</Text>
           <Text style={styles.headerSub}>{categoriesList.length} Systems • {archivedCount} Mass Absorbed</Text>
@@ -1428,9 +1426,9 @@ export default function OrbitScreen() {
       {activeCutscene && (
         <CutsceneOverlay type={activeCutscene.type} taskType={activeCutscene.taskType} color={activeCutscene.color} onFinish={activeCutscene.onFinish} />
       )}
-      { }
+
       {renderKnownUniverse()}
-      { }
+
       <Animated.View
         pointerEvents={!isUniverseView ? 'auto' : 'none'}
         style={[StyleSheet.absoluteFill, { transform: [{ scale: systemScale }], opacity: systemOpacity }]}
@@ -1438,9 +1436,6 @@ export default function OrbitScreen() {
         <View style={styles.header}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
             <Text style={styles.title}>ORBIT</Text>
-            <TouchableOpacity onPress={() => { triggerHaptic('medium'); setIsCustomizationOpen(true); }} style={{ borderWidth: 1, borderColor: '#333', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 10, backgroundColor: '#111' }}>
-              <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold', letterSpacing: 1 }}>THEMES</Text>
-            </TouchableOpacity>
           </View>
           <TouchableOpacity onPress={toggleUniverseMode}>
             <Text style={styles.subtitle}>{activeSystem.toUpperCase()} SYSTEM ▾</Text>
@@ -1461,7 +1456,7 @@ export default function OrbitScreen() {
               </Defs>
               <StarField />
 
-              { }
+
               {activeCosmetics.includes('upgrade_sensor') && (
                 <G transform={`translate(${CENTER_X}, ${CENTER_Y})`}>
                   <Circle r={width * 0.3} stroke={getCategoryPalette(activeSystem)[0]} strokeWidth="1" strokeOpacity="0.3" strokeDasharray="10, 10" />
@@ -1471,7 +1466,7 @@ export default function OrbitScreen() {
                 </G>
               )}
 
-              { }
+
               {activeCosmetics.includes('cosmetic_trails') && (
                 <StarField trailMode={true} />
               )}
@@ -1480,7 +1475,7 @@ export default function OrbitScreen() {
                 <Circle cx={0} cy={0} r={SUN_RADIUS} fill="url(#sunGrad)" onPress={toggleUniverseMode} />
                 <Circle cx={0} cy={0} r={SUN_RADIUS + 15} fill={getCategoryPalette(activeSystem)[0]} opacity={0.15} />
 
-                { }
+
                 {activeCosmetics.includes('cosmetic_shield') && (
                   <Circle cx={0} cy={0} r={SUN_RADIUS + 25} stroke="#0be881" strokeWidth="2" strokeOpacity="0.6" strokeDasharray="2,5" fill="none" />
                 )}
@@ -1495,7 +1490,7 @@ export default function OrbitScreen() {
           <View style={styles.handleIcon} />
           <Text style={styles.handleText}>{isControlsMinimized ? "ADD MISSION" : "MINIMIZE"}</Text>
         </TouchableOpacity>
-        { }
+
         <View style={[styles.controlHeader, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
           <Text style={styles.controlLabel}>DEADLINE: <Text style={{ color: 'white' }}>{targetDateString} • {targetTimeString}</Text></Text>
           {!isUniverseView && activeSystem !== 'General' && (
@@ -1533,106 +1528,136 @@ export default function OrbitScreen() {
       </Animated.View>
       <Modal transparent animationType="slide" visible={isLaunchPadOpen} onRequestClose={() => setIsLaunchPadOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBox, { height: 550, paddingBottom: 40 }]}>
-            <Text style={styles.modalTitle}>MISSION CONFIGURATION</Text>
-            <View style={{ height: 150, alignItems: 'center', justifyContent: 'center', marginVertical: 10 }}>
-              <Svg height={150} width={150} viewBox="-50 -50 100 100">
-                <Defs>
-                  <RadialGradient id="previewGrad" cx="30%" cy="30%" rx="50%" ry="50%">
-                    <Stop offset="0%" stopColor={previewColors[0]} stopOpacity="1" />
-                    <Stop offset="100%" stopColor="#000" stopOpacity="1" />
-                  </RadialGradient>
-                  <RadialGradient id="satBodyPreview" cx="30%" cy="30%" rx="60%" ry="60%">
-                    <Stop offset="0%" stopColor="#ecf0f1" stopOpacity="1" />
-                    <Stop offset="100%" stopColor="#7f8fa6" stopOpacity="1" />
-                  </RadialGradient>
-                  <RadialGradient id="satPanelPreview" cx="50%" cy="50%" rx="50%" ry="50%">
-                    <Stop offset="0%" stopColor="#fff" stopOpacity="0.8" />
-                    <Stop offset="100%" stopColor={previewColors[0]} stopOpacity="1" />
-                  </RadialGradient>
-                </Defs>
-                {taskType === 'planet' && (
-                  <Circle r={30} fill="url(#previewGrad)" stroke="rgba(255,255,255,0.3)" strokeWidth={1} />
+          <View style={[styles.modalBox, { height: 600, paddingBottom: 40 }]}>
+            {isHelpOpen ? (
+              <>
+                <Text style={styles.modalTitle}>MISSION GUIDE</Text>
+                <ScrollView style={{ marginTop: 20 }}>
+                  <Text style={[styles.controlLabel, { color: '#0be881', fontSize: 14, marginBottom: 5 }]}>PLANET (Standard)</Text>
+                  <Text style={{ color: '#aaa', marginBottom: 20, lineHeight: 20 }}>
+                    A primary mission with a fixed deadline. Completing it creates a permanent planet in your system.
+                  </Text>
+
+                  <Text style={[styles.controlLabel, { color: '#3742fa', fontSize: 14, marginBottom: 5 }]}>COMET (Recurring)</Text>
+                  <Text style={{ color: '#aaa', marginBottom: 20, lineHeight: 20 }}>
+                    A recurring mission that returns periodically (monthly/yearly). Maintain momentum to keep comets in orbit.
+                  </Text>
+
+                  <Text style={[styles.controlLabel, { color: '#ff9f43', fontSize: 14, marginBottom: 5 }]}>SATELLITE (Habitual)</Text>
+                  <Text style={{ color: '#aaa', marginBottom: 20, lineHeight: 20 }}>
+                    Small, frequent tasks or habits mapped to specific days. Launch satellites to orbit your planets.
+                  </Text>
+                </ScrollView>
+                <TouchableOpacity style={[styles.cancelLaunchBtn, { marginTop: 20, flex: 0, width: '100%' }]} onPress={() => setIsHelpOpen(false)}>
+                  <Text style={styles.closeText}>BACK TO CONFIGURATION</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.modalTitle}>MISSION CONFIGURATION</Text>
+                <View style={{ height: 150, alignItems: 'center', justifyContent: 'center', marginVertical: 10 }}>
+                  <Svg height={150} width={150} viewBox="-50 -50 100 100">
+                    <Defs>
+                      <RadialGradient id="previewGrad" cx="30%" cy="30%" rx="50%" ry="50%">
+                        <Stop offset="0%" stopColor={previewColors[0]} stopOpacity="1" />
+                        <Stop offset="100%" stopColor="#000" stopOpacity="1" />
+                      </RadialGradient>
+                      <RadialGradient id="satBodyPreview" cx="30%" cy="30%" rx="60%" ry="60%">
+                        <Stop offset="0%" stopColor="#ecf0f1" stopOpacity="1" />
+                        <Stop offset="100%" stopColor="#7f8fa6" stopOpacity="1" />
+                      </RadialGradient>
+                      <RadialGradient id="satPanelPreview" cx="50%" cy="50%" rx="50%" ry="50%">
+                        <Stop offset="0%" stopColor="#fff" stopOpacity="0.8" />
+                        <Stop offset="100%" stopColor={previewColors[0]} stopOpacity="1" />
+                      </RadialGradient>
+                    </Defs>
+                    {taskType === 'planet' && (
+                      <Circle r={30} fill="url(#previewGrad)" stroke="rgba(255,255,255,0.3)" strokeWidth={1} />
+                    )}
+                    {taskType === 'comet' && (
+                      <G transform="rotate(-45)">
+                        <Path d="M 0 0 Q -20 -10 -60 0 Q -20 10 0 0 Z" fill={previewColors[0]} opacity={0.5} />
+                        <Circle r={20} fill="url(#previewGrad)" />
+                      </G>
+                    )}
+                    {taskType === 'satellite' && (
+                      <G transform="rotate(-15) scale(0.8)">
+                        <Rect x="-15" y="-15" width="30" height="30" fill="url(#satBodyPreview)" rx={5} stroke="#7f8fa6" strokeWidth="1" />
+                        <Line x1="0" y1="-15" x2="0" y2="-35" stroke="#95a5a6" strokeWidth="3" />
+                        <Line x1="0" y1="15" x2="0" y2="35" stroke="#95a5a6" strokeWidth="3" />
+                        <Rect x="-20" y="-50" width="40" height="25" fill="url(#satPanelPreview)" rx={2} stroke="#fff" strokeWidth={1} />
+                        <Rect x="-20" y="25" width="40" height="25" fill="url(#satPanelPreview)" rx={2} stroke="#fff" strokeWidth={1} />
+                        <Circle r={4} fill="red" opacity={Math.sin(globalTime / 100) > 0 ? 1 : 0.2} />
+                      </G>
+                    )}
+                  </Svg>
+                </View>
+                <Text style={[styles.controlLabel, { marginBottom: 15 }]}>CLASS</Text>
+                <View style={styles.typeRow}>
+                  <TouchableOpacity onPress={() => { triggerHaptic('light'); setTaskType('planet'); }} style={[styles.typeBtn, taskType === 'planet' && styles.typeBtnActive]}>
+                    <Text style={styles.typeText}>PLANET</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { triggerHaptic('light'); setTaskType('comet'); }} style={[styles.typeBtn, taskType === 'comet' && styles.typeBtnActive]}>
+                    <Text style={styles.typeText}>COMET</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { triggerHaptic('light'); setTaskType('satellite'); }} style={[styles.typeBtn, taskType === 'satellite' && styles.typeBtnActive]}>
+                    <Text style={styles.typeText}>SAT</Text>
+                  </TouchableOpacity>
+                </View>
+                {taskType === 'satellite' && (
+                  <View style={{ marginBottom: 15 }}>
+                    <Text style={[styles.controlLabel, { marginBottom: 10 }]}>ACTIVE DAYS</Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => {
+                        const isSelected = selectedDays.includes(index);
+                        return (
+                          <TouchableOpacity
+                            key={index}
+                            onPress={() => {
+                              triggerHaptic('light');
+                              setSelectedDays(prev => prev.includes(index) ? prev.filter(d => d !== index) : [...prev, index]);
+                            }}
+                            style={{
+                              width: 35, height: 35, borderRadius: 10,
+                              backgroundColor: isSelected ? '#0be881' : '#111',
+                              justifyContent: 'center', alignItems: 'center',
+                              borderWidth: 1, borderColor: isSelected ? '#0be881' : '#333'
+                            }}>
+                            <Text style={{ color: isSelected ? '#000' : '#888', fontWeight: 'bold' }}>{day}</Text>
+                          </TouchableOpacity>
+                        )
+                      })}
+                    </View>
+                  </View>
                 )}
                 {taskType === 'comet' && (
-                  <G transform="rotate(-45)">
-                    <Path d="M 0 0 Q -20 -10 -60 0 Q -20 10 0 0 Z" fill={previewColors[0]} opacity={0.5} />
-                    <Circle r={20} fill="url(#previewGrad)" />
-                  </G>
+                  <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 15 }}>
+                    <TouchableOpacity onPress={() => setRecurrence('monthly')} style={[styles.recBtn, recurrence === 'monthly' && styles.recBtnActive]}>
+                      <Text style={styles.recBtnText}>MONTHLY</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setRecurrence('yearly')} style={[styles.recBtn, recurrence === 'yearly' && styles.recBtnActive]}>
+                      <Text style={styles.recBtnText}>YEARLY</Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
-                {taskType === 'satellite' && (
-                  <G transform="rotate(-15) scale(0.8)">
-                    <Rect x="-15" y="-15" width="30" height="30" fill="url(#satBodyPreview)" rx={5} stroke="#7f8fa6" strokeWidth="1" />
-                    <Line x1="0" y1="-15" x2="0" y2="-35" stroke="#95a5a6" strokeWidth="3" />
-                    <Line x1="0" y1="15" x2="0" y2="35" stroke="#95a5a6" strokeWidth="3" />
-                    <Rect x="-20" y="-50" width="40" height="25" fill="url(#satPanelPreview)" rx={2} stroke="#fff" strokeWidth={1} />
-                    <Rect x="-20" y="25" width="40" height="25" fill="url(#satPanelPreview)" rx={2} stroke="#fff" strokeWidth={1} />
-                    <Circle r={4} fill="red" opacity={Math.sin(globalTime / 100) > 0 ? 1 : 0.2} />
-                  </G>
-                )}
-              </Svg>
-            </View>
-            <Text style={[styles.controlLabel, { marginBottom: 15 }]}>CLASS</Text>
-            <View style={styles.typeRow}>
-              <TouchableOpacity onPress={() => { triggerHaptic('light'); setTaskType('planet'); }} style={[styles.typeBtn, taskType === 'planet' && styles.typeBtnActive]}>
-                <Text style={styles.typeText}>PLANET</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => { triggerHaptic('light'); setTaskType('comet'); }} style={[styles.typeBtn, taskType === 'comet' && styles.typeBtnActive]}>
-                <Text style={styles.typeText}>COMET</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => { triggerHaptic('light'); setTaskType('satellite'); }} style={[styles.typeBtn, taskType === 'satellite' && styles.typeBtnActive]}>
-                <Text style={styles.typeText}>SAT</Text>
-              </TouchableOpacity>
-            </View>
-            {taskType === 'satellite' && (
-              <View style={{ marginBottom: 15 }}>
-                <Text style={[styles.controlLabel, { marginBottom: 10 }]}>ACTIVE DAYS</Text>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => {
-                    const isSelected = selectedDays.includes(index);
-                    return (
-                      <TouchableOpacity
-                        key={index}
-                        onPress={() => {
-                          triggerHaptic('light');
-                          setSelectedDays(prev => prev.includes(index) ? prev.filter(d => d !== index) : [...prev, index]);
-                        }}
-                        style={{
-                          width: 35, height: 35, borderRadius: 10,
-                          backgroundColor: isSelected ? '#0be881' : '#111',
-                          justifyContent: 'center', alignItems: 'center',
-                          borderWidth: 1, borderColor: isSelected ? '#0be881' : '#333'
-                        }}>
-                        <Text style={{ color: isSelected ? '#000' : '#888', fontWeight: 'bold' }}>{day}</Text>
-                      </TouchableOpacity>
-                    )
-                  })}
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10, marginTop: 20 }}>
+                  <TouchableOpacity style={styles.cancelLaunchBtn} onPress={() => setIsLaunchPadOpen(false)}>
+                    <Text style={styles.closeText}>ABORT</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.confirmLaunchBtn} onPress={finalizeAddTask}>
+                    <Text style={styles.completeText}>LAUNCH</Text>
+                  </TouchableOpacity>
                 </View>
-              </View>
-            )}
-            {taskType === 'comet' && (
-              <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 15 }}>
-                <TouchableOpacity onPress={() => setRecurrence('monthly')} style={[styles.recBtn, recurrence === 'monthly' && styles.recBtnActive]}>
-                  <Text style={styles.recBtnText}>MONTHLY</Text>
+                <TouchableOpacity style={{ alignSelf: 'center', marginTop: 15, padding: 10 }} onPress={() => setIsHelpOpen(true)}>
+                  <Ionicons name="help-circle-outline" size={24} color="#555" />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setRecurrence('yearly')} style={[styles.recBtn, recurrence === 'yearly' && styles.recBtnActive]}>
-                  <Text style={styles.recBtnText}>YEARLY</Text>
-                </TouchableOpacity>
-              </View>
+              </>
             )}
-            { }
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10, marginTop: 20 }}>
-              <TouchableOpacity style={styles.cancelLaunchBtn} onPress={() => setIsLaunchPadOpen(false)}>
-                <Text style={styles.closeText}>ABORT</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.confirmLaunchBtn} onPress={finalizeAddTask}>
-                <Text style={styles.completeText}>LAUNCH</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       </Modal>
-      { }
+
       <Modal transparent visible={isEditing || isAdding} animationType="slide" onRequestClose={() => { setIsEditing(false); setIsAdding(false); }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
